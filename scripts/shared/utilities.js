@@ -1,5 +1,5 @@
-const { ethers } = require("hardhat");
-const { BigNumber } = ethers;
+const { ethers } = require("hardhat")
+const { BigNumber } = ethers
 
 // Defaults to e18 using amount * 10^18
 function getBigNumber(amount, decimals = 18) {
@@ -8,5 +8,5 @@ function getBigNumber(amount, decimals = 18) {
 
 module.exports = {
   getCreate2CohortAddress,
-  getBigNumber
+  getBigNumber,
 }

@@ -177,7 +177,7 @@ contract TribeOne is Ownable, ReentrancyGuard {
             returnColleteral(_loanId);
         }
 
-        emit NFTRelayed(_loanId, msg.sender,  _accepted);
+        emit NFTRelayed(_loanId, msg.sender, _accepted);
     }
 
     function payInstallment(uint256 _loanId, uint256 _amount) external payable {

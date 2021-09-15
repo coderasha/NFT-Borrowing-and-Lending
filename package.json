@@ -20,7 +20,7 @@
     "bscTest:verify": "hardhat --network bscTest etherscan-verify --solc-input",
     "bscMain:deploy": "hardhat --network bscMain deploy",
     "bscMain:verify": "hardhat --network bscMain etherscan-verify --solc-input",
-    "prettier": "prettier --write contracts/**/*.sol"
+    "prettier": "prettier --write scripts/**/*.js && prettier --write test/**/*.js && prettier --write contracts/**/*.sol"
   },
   "keywords": [],
   "author": "",

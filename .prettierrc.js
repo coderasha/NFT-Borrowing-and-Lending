@@ -11,13 +11,13 @@ module.exports = {
         explicitTypes: "always",
       },
     },
-  //   {
-  //     files: "*.ts",
-  //     options: {
-  //       printWidth: 145,
-  //       semi: false,
-  //       trailingComma: "es5",
-  //     },
-  //   },
+    {
+      files: "*.js",
+      options: {
+        printWidth: 145,
+        semi: false,
+        trailingComma: "es5",
+      },
+    },
   ],
 }
