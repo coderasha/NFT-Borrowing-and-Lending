@@ -51,9 +51,12 @@ contract TribeOne is Ownable, ReentrancyGuard {
 
     uint256 public TENOR_UNIT = 4 weeks; // installment should be pay at least in every 4 weeks
 
-    event NewLoan(uint256 indexed loanId, address indexed owner, uint256 creationDate, Status status);
-
-    event LoanApproved(uint256 indexed _loanId, uint256 _to, uint256 _fundAmount);
+    event LoanCreated(uint256 indexed loanId, address indexed owner, Status status);
+    event LoanApproved(uint256 indexed _loanId, address indexed _to, address _fundCurreny, uint256 _fundAmount);
+    event LoanCanceled(uint256 indexed _loanId, address _sender);
+    event NFTRelayed(uint256 indexed _loanId, address indexed _sender, bool _accepted);
+    event InstallmentPaid(uint256 indexed _loanId, address _sender, address _currency, uint256 _amount);
+    event NFTWithdrew(uint256 indexed _loanId, address _to);
 
     constructor() {}
 
@@ -119,7 +122,7 @@ contract TribeOne is Ownable, ReentrancyGuard {
         loans[loanID].nftTokenTypeArray = nftTokenTypeArray;
         loanIds.increment();
         // Emit event
-        emit NewLoan(loanID, msg.sender, block.timestamp, Status.LISTED);
+        emit LoanCreated(loanID, msg.sender, Status.LISTED);
     }
 
     /**
@@ -137,6 +140,8 @@ contract TribeOne is Ownable, ReentrancyGuard {
         } else {
             TransferHelper.safeTransfer(_token, msg.sender, _amount);
         }
+
+        emit LoanApproved(_loanId, msg.sender, _token, _amount);
     }
 
     /**
@@ -171,6 +176,8 @@ contract TribeOne is Ownable, ReentrancyGuard {
             loans[_loanId].status = Status.FAILED;
             returnColleteral(_loanId);
         }
+
+        emit NFTRelayed(_loanId, msg.sender,  _accepted);
     }
 
     function payInstallment(uint256 _loanId, uint256 _amount) external payable {
@@ -205,6 +212,8 @@ contract TribeOne is Ownable, ReentrancyGuard {
 
         loans[_loanId].paidAmount += _amount;
         loans[_loanId].nrOfPayments += 1;
+
+        emit InstallmentPaid(_loanId, msg.sender, _loanCurrency, _amount);
     }
 
     function expectedNrOfPayments(uint256 _loanId) public view returns (uint256) {
@@ -234,6 +243,8 @@ contract TribeOne is Ownable, ReentrancyGuard {
         loans[_loanId].status = Status.WITHDRAWN;
 
         returnColleteral(_loanId);
+
+        emit NFTWithdrew(_loanId, _msgSender());
     }
 
     function cancelLoan(uint256 _loanId) external nonReentrant {
@@ -242,6 +253,8 @@ contract TribeOne is Ownable, ReentrancyGuard {
         loans[_loanId].status = Status.CANCELLED;
 
         returnColleteral(_loanId);
+
+        emit LoanCanceled(_loanId, _msgSender());
     }
 
     // /**
