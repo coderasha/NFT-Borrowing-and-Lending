@@ -1,10 +1,16 @@
-const { expect } = require("chai")
-const { ethers } = require("hardhat")
+const { expect } = require('chai');
+const { ethers } = require('hardhat');
 
-describe("TribeOne", function () {
-  before(async function () {})
+describe('TribeOne', function () {
+  before(async function () {
+    this.TribeOne = await ethers.getContractFactory('TribeOne');
 
-  beforeEach(async function () {})
+    this.signers = await ethers.getSigners();
+  });
 
-  it("TribeOne", async function () {})
-})
+  beforeEach(async function () {
+    this.tribeOne = await this.TribeOne.deploy();
+  });
+
+  it('TribeOne', async function () {});
+});
