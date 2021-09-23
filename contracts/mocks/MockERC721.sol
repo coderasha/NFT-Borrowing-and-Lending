@@ -2,23 +2,16 @@
 
 pragma solidity ^0.8.0;
 
-// import "openzeppelin-solidity/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
-// import "openzeppelin-solidity/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-// import "openzeppelin-solidity/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-// import "openzeppelin-solidity/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
-
-// import "./common/meta-transactions/ContentMixin.sol";
-// import "./common/meta-transactions/NativeMetaTransaction.sol";
 
 /**
  * @title ERC721Tradable
  * ERC721Tradable - ERC721 contract that whitelists a trading address, and has minting functionality.
  */
-contract ERC721Tradable is ERC721Enumerable, Ownable {
+contract MockERC721 is ERC721Enumerable, Ownable {
     using SafeMath for uint256;
 
     uint256 private _currentTokenId = 0;
