@@ -9,7 +9,12 @@ describe('TribeOne', function () {
   });
 
   beforeEach(async function () {
-    this.tribeOne = await this.TribeOne.deploy();
+    this.tribeOne = await this.TribeOne.deploy(
+      this.signers[0].address,
+      this.signers[0].address,
+      this.signers[0].address,
+      this.signers[0].address
+    );
   });
 
   it('TribeOne', async function () {});

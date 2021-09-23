@@ -2,18 +2,26 @@
 
 pragma solidity ^0.8.0;
 
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
+
 // from uniswap SDK
 // helper methods for interacting with ERC20 tokens and sending ETH that do not consistently return true/false
 library TransferHelper {
-    function safeApprove(
-        address token,
-        address to,
-        uint256 value
-    ) internal {
-        // bytes4(keccak256(bytes('approve(address,uint256)')));
-        (bool success, bytes memory data) = token.call(abi.encodeWithSelector(0x095ea7b3, to, value));
-        require(success && (data.length == 0 || abi.decode(data, (bool))), "TransferHelper::safeApprove: approve failed");
+    enum TokenType {
+        ERC721,
+        ERC1155
     }
+
+    // function safeApprove(
+    //     address token,
+    //     address to,
+    //     uint256 value
+    // ) internal {
+    //     // bytes4(keccak256(bytes('approve(address,uint256)')));
+    //     (bool success, bytes memory data) = token.call(abi.encodeWithSelector(0x095ea7b3, to, value));
+    //     require(success && (data.length == 0 || abi.decode(data, (bool))), "TransferHelper::safeApprove: approve failed");
+    // }
 
     function safeTransfer(
         address token,
@@ -39,5 +47,19 @@ library TransferHelper {
     function safeTransferETH(address to, uint256 value) internal {
         (bool success, ) = to.call{value: value}(new bytes(0));
         require(success, "TransferHelper::safeTransferETH: ETH transfer failed");
+    }
+
+    function safeTransferNFT(
+        address _nft,
+        address _from,
+        address _to,
+        TokenType _type,
+        uint256 _tokenId
+    ) internal {
+        if (_type == TokenType.ERC721) {
+            IERC721(_nft).safeTransferFrom(_from, _to, _tokenId);
+        } else {
+            IERC1155(_nft).safeTransferFrom(_from, _to, _tokenId, 1, "0x00");
+        }
     }
 }
