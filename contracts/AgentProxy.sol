@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interfaces/ITribeOne.sol";
+import "hardhat/console.sol";
 
 contract AgentProxy is Ownable {
     mapping(address => bool) private AGENT_LIST;
@@ -35,7 +36,7 @@ contract AgentProxy is Ownable {
         address _tribeOne,
         uint256 _loanId,
         bool _accepted
-    ) external onlyAgent {
-        ITribeOne(_tribeOne).relayNFT(_loanId, _accepted);
+    ) external payable onlyAgent {
+        ITribeOne(_tribeOne).relayNFT{value: msg.value}(_loanId, msg.sender, _accepted);
     }
 }

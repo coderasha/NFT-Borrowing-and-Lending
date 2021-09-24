@@ -34,7 +34,7 @@ module.exports = {
   gasReporter: {
     coinmarketcap: process.env.COINMARKETCAP_API_KEY,
     currency: "USD",
-    enabled: true
+    enabled: false
   },
   namedAccounts: {
     deployer: {
@@ -91,11 +91,11 @@ module.exports = {
     sources: "contracts",
     tests: "test"
   },
-  contractSizer: {
-    alphaSort: true,
-    disambiguatePaths: true,
-    runOnCompile: true
-  },
+  // contractSizer: {
+  //   alphaSort: true,
+  //   disambiguatePaths: true,
+  //   runOnCompile: true
+  // },
   solidity: {
     version: "0.8.0",
     settings: {
