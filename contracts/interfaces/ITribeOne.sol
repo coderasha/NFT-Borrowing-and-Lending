@@ -8,5 +8,9 @@ interface ITribeOne {
         address _agent
     ) external;
 
-    function relayNFT(uint256 _loanId, address _agent, bool _accepted) external payable;
+    function relayNFT(
+        uint256 _loanId,
+        address _agent,
+        bool _accepted
+    ) external payable;
 }

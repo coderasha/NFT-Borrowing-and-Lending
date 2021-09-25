@@ -7,12 +7,13 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
+import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "./interfaces/ITribeOne.sol";
 import "./libraries/TransferHelper.sol";
 
 import "hardhat/console.sol";
 
-contract TribeOne is ERC721Holder, ITribeOne, Ownable, ReentrancyGuard {
+contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, ReentrancyGuard {
     using Counters for Counters.Counter;
 
     enum Status {
@@ -71,7 +72,8 @@ contract TribeOne is ERC721Holder, ITribeOne, Ownable, ReentrancyGuard {
     event NFTRelayed(uint256 indexed _loanId, address indexed _sender, bool _accepted);
     event InstallmentPaid(uint256 indexed _loanId, address _sender, address _currency, uint256 _amount);
     event NFTWithdrew(uint256 indexed _loanId, address _to);
-    event LoanLocked(uint256 indexed _loanId, address _to);
+    event LoanDefaulted(uint256 indexed _loandId);
+    event LoanLiquidation(uint256 indexed _loanId, address _salesManager);
     event LoanPostLiquidation(uint256 indexed _loanId);
 
     constructor(
@@ -181,16 +183,16 @@ contract TribeOne is ERC721Holder, ITribeOne, Ownable, ReentrancyGuard {
      * @dev _loanId: loanId, _accepted: order to Partner is succeeded or not
      * loan will be back to TribeOne if accepted false
      */
-    function relayNFT(uint256 _loanId, address _agent, bool _accepted) external payable override onlyAgent nonReentrant {
+    function relayNFT(
+        uint256 _loanId,
+        address _agent,
+        bool _accepted
+    ) external payable override onlyAgent nonReentrant {
         if (_accepted) {
             require(loans[_loanId].status == Status.APPROVED, "TribeOne: Not approved loan");
 
             uint256 len = loans[_loanId].nftAddressArray.length;
             for (uint256 ii = 0; ii < len; ii++) {
-                console.log(ii);
-                console.log(loans[_loanId].nftAddressArray[ii]);
-                console.log(loans[_loanId].nftTokenIdArray[ii]);
-                // console.log(loans[_loanId].nftTokenTypeArray[ii]);
                 TransferHelper.safeTransferNFT(
                     loans[_loanId].nftAddressArray[ii],
                     _agent,
@@ -226,7 +228,7 @@ contract TribeOne is ERC721Holder, ITribeOne, Ownable, ReentrancyGuard {
 
     function payInstallment(uint256 _loanId, uint256 _amount) external payable nonReentrant {
         Loan memory _loan = loans[_loanId];
-        require(_loan.status == Status.LOANACTIVED, "TribeOne:Invalid status");
+        require(_loan.status == Status.LOANACTIVED || _loan.status == Status.DEFAULTED, "TribeOne: Invalid status");
         uint256 expectedNr = expectedNrOfPayments(_loanId);
 
         address _loanCurrency = _loan.loanAsset.currency;
@@ -239,6 +241,8 @@ contract TribeOne is ERC721Holder, ITribeOne, Ownable, ReentrancyGuard {
         {
             // uint16[] calldata _loanRules, // tenor, LTV, interest,
             uint256 expectedAmount = (_totalDebt * expectedNr) / _loan.loanRules[0];
+            console.log('expectedAmount', expectedAmount);
+            console.log('_amount', _amount);
             require(paidAmount + _amount >= expectedAmount, "TribeOne: Insufficient Amount");
             // out of rule, penalty
             updatePenalty(_loanId);
@@ -268,6 +272,10 @@ contract TribeOne is ERC721Holder, ITribeOne, Ownable, ReentrancyGuard {
         if (paidAmount + _amount == _totalDebt && _loan.borrower == _msgSender() && _loan.nrOfPenalty == 0) {
             loans[_loanId].status = Status.LOANPAID;
             _withdrawNFT(_loanId);
+        }
+
+        if (loans[_loanId].status == Status.DEFAULTED) {
+            loans[_loanId].status = Status.LOANACTIVED;
         }
 
         emit InstallmentPaid(_loanId, msg.sender, _loanCurrency, _amount);
@@ -323,28 +331,23 @@ contract TribeOne is ERC721Holder, ITribeOne, Ownable, ReentrancyGuard {
         return _expected > _tenor ? _tenor : _expected;
     }
 
-    function expectedLastPaymentTime(uint256 _loanId, uint256 _tenorNr) public view returns (uint256) {
-        return loans[_loanId].loanStart + TENOR_UNIT * _tenorNr;
+    function expectedLastPaymentTime(uint256 _loanId) public view returns (uint256) {
+        return loans[_loanId].loanStart + TENOR_UNIT * (loans[_loanId].paidTenors + 1);
     }
 
-    function setLoanDefaulted(uint256 _loanId, bool _sell) external nonReentrant {
+    function setLoanDefaulted(uint256 _loanId) external nonReentrant {
         require(loans[_loanId].status == Status.LOANACTIVED, "TribeOne: Invalid status");
         require(
-            expectedLastPaymentTime(_loanId, loans[_loanId].loanRules[0]) + GRACE_PERIOD < block.timestamp,
+            expectedLastPaymentTime(_loanId) + GRACE_PERIOD < block.timestamp,
             "TribeOne: Not overdued date yet"
         );
         updatePenalty(_loanId);
         loans[_loanId].status = Status.DEFAULTED;
-        if (_sell) {
-            _relayLoanNFTToMarket(_loanId);
-        }
+
+        emit LoanDefaulted(_loanId);
     }
 
-    function relayLoanNFTToMarket(uint256 _loanId) external nonReentrant {
-        _relayLoanNFTToMarket(_loanId);
-    }
-
-    function _relayLoanNFTToMarket(uint256 _loanId) private {
+    function setLoanLiquidation(uint256 _loanId) external nonReentrant {
         Loan memory _loan = loans[_loanId];
         require(_loan.status == Status.DEFAULTED);
         loans[_loanId].status = Status.LIQUIDATION;
@@ -354,18 +357,14 @@ contract TribeOne is ERC721Holder, ITribeOne, Ownable, ReentrancyGuard {
         for (uint256 ii = 0; ii < len; ii++) {
             address _nftAddress = _loan.nftAddressArray[ii];
             uint256 _tokenId = _loan.nftTokenIdArray[ii];
-            TransferHelper.safeTransferNFT(_nftAddress, _msgSender(), address(this), _loan.nftTokenTypeArray[ii], _tokenId);
+            TransferHelper.safeTransferNFT(_nftAddress, salesManager, address(this), _loan.nftTokenTypeArray[ii], _tokenId);
         }
         // user can not get back Collateral in this case
         address _currency = _loan.collateralAsset.currency;
         uint256 _amount = _loan.collateralAsset.amount;
-        if (_currency == address(0)) {
-            TransferHelper.safeTransferETH(feeTo, _amount);
-        } else {
-            TransferHelper.safeTransfer(_currency, feeTo, _amount);
-        }
+        TransferHelper.safeTransferAsset(_currency, feeTo, _amount);
 
-        emit LoanLocked(_loanId, feeTo);
+        emit LoanLiquidation(_loanId, salesManager);
     }
 
     /**
@@ -426,6 +425,8 @@ contract TribeOne is ERC721Holder, ITribeOne, Ownable, ReentrancyGuard {
         } else {
             TransferHelper.safeTransferFrom(_currency, address(this), _msgSender(), _loan.restAmount);
         }
+
+        // TODO emit event
     }
 
     /**
@@ -449,6 +450,9 @@ contract TribeOne is ERC721Holder, ITribeOne, Ownable, ReentrancyGuard {
                 loans[_loanId].status = Status.RESTLOCKED;
             }
         }
+
+        TransferHelper.safeTransferAsset(_currency, feeTo, _amount);
+        // TODO emit event
     }
 
     function cancelLoan(uint256 _loanId) external nonReentrant {
@@ -469,11 +473,7 @@ contract TribeOne is ERC721Holder, ITribeOne, Ownable, ReentrancyGuard {
         address _currency = _loan.collateralAsset.currency;
         uint256 _amount = _loan.collateralAsset.amount;
         address _to = _loan.borrower;
-        if (_currency == address(0)) {
-            TransferHelper.safeTransferETH(_to, _amount);
-        } else {
-            TransferHelper.safeTransfer(_currency, _to, _amount);
-        }
+        TransferHelper.safeTransferAsset(_currency, _to, _amount);
     }
 
     function returnFund(uint256 _loanId) private {
@@ -481,10 +481,6 @@ contract TribeOne is ERC721Holder, ITribeOne, Ownable, ReentrancyGuard {
         address _currency = _loan.loanAsset.currency;
         uint256 _amount = _loan.loanAsset.amount;
         address _to = _loan.borrower;
-        if (_currency == address(0)) {
-            TransferHelper.safeTransferETH(_to, _amount);
-        } else {
-            TransferHelper.safeTransfer(_currency, _to, _amount);
-        }
+        TransferHelper.safeTransferAsset(_currency, _to, _amount);
     }
 }

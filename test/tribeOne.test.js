@@ -36,7 +36,7 @@ describe('TribeOne', function () {
 
     // Preparing NFT
     this.erc721NFT = await this.MockERC721.deploy('TribeOne', 'TribeOne');
-    this.erc1155NFT = await this.MockERC1155.deploy();
+    this.erc1155NFT = await this.MockERC1155.connect(this.agent).deploy();
     await this.erc721NFT.batchMintTo(this.agent.address, 10);
 
     // Adding agent
@@ -89,6 +89,7 @@ describe('TribeOne', function () {
   describe('Loan actions', function () {
     beforeEach(async function () {
       const _loanRules = [6, 2500, 300];
+      this.loanRules = _loanRules;
       const _currencies = [ZERO_ADDRESS, this.collateralCurrency.address];
       const nftAddressArray = [this.erc721NFT.address, this.erc721NFT.address, this.erc1155NFT.address];
       const _amounts = [getBigNumber(1), getBigNumber(100)];
@@ -107,7 +108,8 @@ describe('TribeOne', function () {
         .withArgs(1, this.alice.address);
 
       this.loanId = 1;
-      const amount = getBigNumber(2);
+      this.loanAmount = getBigNumber(12, 17);
+      const amount = this.loanAmount.add(_amounts[0]);
       await expect(
         this.agentProxy
           .connect(this.agent)
@@ -122,33 +124,70 @@ describe('TribeOne', function () {
     it('Should return callateral and fund amount to borrower', async function () {
       const loanAmount = this.createdLoan.loanAsset.amount;
       await expect(
-        this.agentProxy
-          .connect(this.agent)
-          .relayNFT(this.tribeOne.address, this.loanId, false, { value: loanAmount })
+        this.agentProxy.connect(this.agent).relayNFT(this.tribeOne.address, this.loanId, false, { value: loanAmount })
       )
         .to.emit(this.tribeOne, 'NFTRelayed')
         .withArgs(this.loanId, this.agent.address, false);
     });
-    it('Should relay NFT to TribeOne', async function () {
-      // setApprovalForAll
 
-      // const nftTokenTypeArray = this.createLoan.nftTokenTypeArray;
-      // const nftAddressArray = this.createLoan.nftAddressArray;
-      // const nftTokenIdArray = [1, 2, 1];
+    it('Should relay NFT to TribeOne', async function () {
       const nftTokenTypeArray = [NFT_TYPE.ERC721, NFT_TYPE.ERC721, NFT_TYPE.ERC1155];
       const nftTokenAddressArray = [this.erc721NFT.address, this.erc721NFT.address, this.erc1155NFT.address];
 
       // Approving
       for (let ii = 0; ii < nftTokenAddressArray.length; ii++) {
-        const nftContract = nftTokenTypeArray[ii] == NFT_TYPE.ERC721
-          ? await this.MockERC721.attach(nftTokenAddressArray[ii])
-          : await this.MockERC1155.attach(nftTokenAddressArray[ii]);
+        const nftContract =
+          nftTokenTypeArray[ii] == NFT_TYPE.ERC721
+            ? await this.MockERC721.attach(nftTokenAddressArray[ii])
+            : await this.MockERC1155.attach(nftTokenAddressArray[ii]);
         await nftContract.connect(this.agent).setApprovalForAll(this.tribeOne.address, true);
       }
       //[NFT_TYPE.ERC721, NFT_TYPE.ERC721, NFT_TYPE.ERC1155];
-      await this.agentProxy
-          .connect(this.agent)
-          .relayNFT(this.tribeOne.address, this.loanId, true);
-    })
+      await expect(this.agentProxy.connect(this.agent).relayNFT(this.tribeOne.address, this.loanId, true))
+        .to.emit(this.tribeOne, 'NFTRelayed')
+        .withArgs(this.loanId, this.agent.address, true);
+    });
+
+    /**
+     * Current Loan - [6, 2500, 300] 10000- 100% Tenor LTV, interest, nftTypes - [ERC721, ERC721, ERC1155], nftIds - [1, 2, 10]
+     * collateral: 100 usdc, fund amount: 1 ETH, loan amount: 1.2 ETH
+     */
+    describe('Loan payment', function () {
+      beforeEach(async function () {
+        const nftTokenTypeArray = [NFT_TYPE.ERC721, NFT_TYPE.ERC721, NFT_TYPE.ERC1155];
+        const nftTokenAddressArray = [this.erc721NFT.address, this.erc721NFT.address, this.erc1155NFT.address];
+
+        // Approving
+        for (let ii = 0; ii < nftTokenAddressArray.length; ii++) {
+          const nftContract =
+            nftTokenTypeArray[ii] == NFT_TYPE.ERC721
+              ? await this.MockERC721.attach(nftTokenAddressArray[ii])
+              : await this.MockERC1155.attach(nftTokenAddressArray[ii]);
+          await nftContract.connect(this.agent).setApprovalForAll(this.tribeOne.address, true);
+        }
+        //[NFT_TYPE.ERC721, NFT_TYPE.ERC721, NFT_TYPE.ERC1155];
+        await this.agentProxy.connect(this.agent).relayNFT(this.tribeOne.address, this.loanId, true);
+      });
+
+      it('Total debt', async function () {
+        const interest = this.loanAmount.mul(this.loanRules[2]).div(10000);
+        const totalDebt = this.loanAmount.add(interest);
+        expect(await this.tribeOne.totalDebt(this.loanId)).to.be.equal(totalDebt);
+      });
+
+      // it('Pay installment', async function () {
+      //   await expect(this.tribeOne.payInstallment(this.loanId, getBigNumber(1, 17))).to.be.revertedWith(
+      //     'TribeOne: Insufficient Amount'
+      //   );
+
+      //   // Paid 0.2ETH for installment
+      //   const totalDebt = await this.tribeOne.totalDebt(this.loanId);
+      //   const desiredAmount = totalDebt.div(6);
+      //   console.log('[desiredAmount]', desiredAmount.toString());
+      //   await expect(this.tribeOne.payInstallment(this.loanId, desiredAmount))
+      //     .to.emit(this.tribeOne, 'InstallmentPaid')
+      //     .withArgs(this.loanId, this.alice.address, ZERO_ADDRESS, desiredAmount);
+      // });
+    });
   });
 });

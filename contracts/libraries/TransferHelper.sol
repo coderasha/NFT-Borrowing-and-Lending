@@ -49,6 +49,14 @@ library TransferHelper {
         require(success, "TransferHelper::safeTransferETH: ETH transfer failed");
     }
 
+    function safeTransferAsset(address token, address to, uint256 value) internal {
+        if (token == address(0)) {
+            safeTransferETH(to, value);
+        } else {
+            safeTransfer(token, to, value);
+        }
+    }
+
     function safeTransferNFT(
         address _nft,
         address _from,
