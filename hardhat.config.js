@@ -34,7 +34,7 @@ module.exports = {
   gasReporter: {
     coinmarketcap: process.env.COINMARKETCAP_API_KEY,
     currency: "USD",
-    enabled: false
+    enabled: true
   },
   namedAccounts: {
     deployer: {

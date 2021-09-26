@@ -1,6 +1,13 @@
 const { expect } = require('chai');
-const { ethers } = require('hardhat');
-const { ZERO_ADDRESS, getBigNumber, NFT_TYPE, STATUS } = require('../scripts/shared/utilities');
+const { ethers, network } = require('hardhat');
+const {
+  ZERO_ADDRESS,
+  getBigNumber,
+  NFT_TYPE,
+  STATUS,
+  TENOR_UNIT,
+  GRACE_PERIOD
+} = require('../scripts/shared/utilities');
 
 /**
  * We assume loan currency is native coin
@@ -51,6 +58,9 @@ describe('TribeOne', function () {
     await this.collateralCurrency.transfer(this.alice.address, getBigNumber(1000000));
     await this.collateralCurrency.transfer(this.bob.address, getBigNumber(1000000));
     await this.collateralCurrency.transfer(this.todd.address, getBigNumber(1000000));
+    await this.feeCurrency.transfer(this.alice.address, getBigNumber(1000000));
+    await this.feeCurrency.transfer(this.bob.address, getBigNumber(1000000));
+    await this.feeCurrency.transfer(this.todd.address, getBigNumber(1000000));
   });
 
   it('Should create and approve loan', async function () {
@@ -63,6 +73,7 @@ describe('TribeOne', function () {
 
     console.log('Alice is creating loan...');
     await this.collateralCurrency.connect(this.alice).approve(this.tribeOne.address, getBigNumber(100000000));
+    await this.feeCurrency.connect(this.alice).approve(this.tribeOne.address, getBigNumber(1000000));
     await expect(
       this.tribeOne
         .connect(this.alice)
@@ -175,19 +186,132 @@ describe('TribeOne', function () {
         expect(await this.tribeOne.totalDebt(this.loanId)).to.be.equal(totalDebt);
       });
 
-      // it('Pay installment', async function () {
-      //   await expect(this.tribeOne.payInstallment(this.loanId, getBigNumber(1, 17))).to.be.revertedWith(
-      //     'TribeOne: Insufficient Amount'
-      //   );
+      it('Pay installment and withdraw NFT without any penalty', async function () {
+        // await expect(
+        //   this.tribeOne
+        //     .connect(this.alice)
+        //     .payInstallment(this.loanId, getBigNumber(1, 17), { value: getBigNumber(2, 17) })
+        // ).to.be.revertedWith('TribeOne: Insufficient Amount');
 
-      //   // Paid 0.2ETH for installment
-      //   const totalDebt = await this.tribeOne.totalDebt(this.loanId);
-      //   const desiredAmount = totalDebt.div(6);
-      //   console.log('[desiredAmount]', desiredAmount.toString());
-      //   await expect(this.tribeOne.payInstallment(this.loanId, desiredAmount))
-      //     .to.emit(this.tribeOne, 'InstallmentPaid')
-      //     .withArgs(this.loanId, this.alice.address, ZERO_ADDRESS, desiredAmount);
-      // });
+        // Paid 0.2ETH for installment
+        const totalDebt = await this.tribeOne.totalDebt(this.loanId);
+        const desiredAmount = totalDebt.div(6);
+
+        for (let ii = 0; ii < 5; ii++) {
+          await expect(
+            this.tribeOne.connect(this.alice).payInstallment(this.loanId, desiredAmount, { value: desiredAmount })
+          )
+            .to.emit(this.tribeOne, 'InstallmentPaid')
+            .withArgs(this.loanId, this.alice.address, ZERO_ADDRESS, desiredAmount);
+        }
+
+        await expect(this.tribeOne.connect(this.alice).withdrawNFT(this.loanId)).to.be.revertedWith(
+          'TribeOne: Invalid status - you have still debt to pay'
+        );
+
+        await expect(
+          this.tribeOne.connect(this.alice).payInstallment(this.loanId, desiredAmount, { value: desiredAmount })
+        )
+          .to.emit(this.tribeOne, 'NFTWithdrew')
+          .withArgs(this.loanId, this.alice.address);
+      });
+
+      it('Pay installment and withdraw NFT with one penalty', async function () {
+        // Paid 0.2ETH for installment
+        // const totalDebt = await this.tribeOne.totalDebt(this.loanId);
+        // const desiredAmount = totalDebt.div(6);
+        // let createdLoan = await this.tribeOne.loans(this.loanId);
+        // const loanStart = createdLoan.loanStart;
+        // for (let ii = 0; ii < 3; ii++) {
+        //   await expect(
+        //     this.tribeOne.connect(this.alice).payInstallment(this.loanId, desiredAmount, { value: desiredAmount })
+        //   )
+        //     .to.emit(this.tribeOne, 'InstallmentPaid')
+        //     .withArgs(this.loanId, this.alice.address, ZERO_ADDRESS, desiredAmount);
+        // }
+        // // 4 * 4 weeks and 3 days
+        // const after4Tenor = Number(loanStart.toString()) + TENOR_UNIT * 4;
+        // network.provider.send('evm_setNextBlockTimestamp', [after4Tenor + 3 * 24 * 3600]);
+        // await network.provider.send('evm_mine');
+        // // Testing penalty
+        // await this.tribeOne.updatePenalty(this.loanId);
+        // createdLoan = await this.tribeOne.loans(this.loanId);
+        // nrOfPenalty = createdLoan.nrOfPenalty;
+        // expect(nrOfPenalty).equal(1);
+        // for (let ii = 0; ii < 3; ii++) {
+        //   await expect(
+        //     this.tribeOne.connect(this.alice).payInstallment(this.loanId, desiredAmount, { value: desiredAmount })
+        //   )
+        //     .to.emit(this.tribeOne, 'InstallmentPaid')
+        //     .withArgs(this.loanId, this.alice.address, ZERO_ADDRESS, desiredAmount);
+        // }
+        // await expect(this.tribeOne.connect(this.alice).withdrawNFT(this.loanId)).to.be.revertedWith(
+        //   'TransferHelper::transferFrom: transferFrom failed'
+        // );
+        // await this.feeCurrency.connect(this.alice).approve(this.tribeOne.address, getBigNumber(1000000));
+        // await expect(
+        //   this.tribeOne.connect(this.alice).withdrawNFT(this.loanId)
+        // )
+        //   .to.emit(this.tribeOne, 'NFTWithdrew')
+        //   .withArgs(this.loanId, this.alice.address);
+      });
+
+      it('Put NFT in Liquidation and user get back the rest', async function () {
+        // Pay 0.2ETH for one installment
+        const totalDebt = await this.tribeOne.totalDebt(this.loanId);
+        const desiredAmount = totalDebt.div(6);
+        let createdLoan = await this.tribeOne.loans(this.loanId);
+        const loanStart = createdLoan.loanStart;
+
+        for (let ii = 0; ii < 3; ii++) {
+          await expect(
+            this.tribeOne.connect(this.alice).payInstallment(this.loanId, desiredAmount, { value: desiredAmount })
+          )
+            .to.emit(this.tribeOne, 'InstallmentPaid')
+            .withArgs(this.loanId, this.alice.address, ZERO_ADDRESS, desiredAmount);
+        }
+
+        await expect(this.tribeOne.setLoanDefaulted(this.loanId)).to.be.revertedWith('TribeOne: Not overdued date yet');
+
+        // 4 * 4 weeks and 3 days,  GRACE_PERIOD
+        const after4Tenor = Number(loanStart.toString()) + TENOR_UNIT * 4;
+        network.provider.send('evm_setNextBlockTimestamp', [after4Tenor + 3 * 24 * 3600]);
+        await network.provider.send('evm_mine');
+
+        await expect(this.tribeOne.setLoanDefaulted(this.loanId))
+          .to.emit(this.tribeOne, 'LoanDefaulted')
+          .withArgs(this.loanId);
+
+        await expect(this.tribeOne.setLoanLiquidation(this.loanId)).to.be.revertedWith(
+          'TribeOne: Not overdued date yet'
+        );
+
+        // 4 * 4 weeks and 15 days,  GRACE_PERIOD + 1
+        network.provider.send('evm_setNextBlockTimestamp', [after4Tenor + 15 * 24 * 3600]);
+        await network.provider.send('evm_mine');
+
+        await expect(this.tribeOne.setLoanLiquidation(this.loanId))
+          .to.emit(this.tribeOne, 'LoanLiquidation')
+          .withArgs(this.loanId, this.salesManager.address);
+
+        // checking finalt debt
+        const finalDebt = await this.tribeOne.finalDebtAndPenalty(this.loanId);
+        expect(finalDebt).to.equal(desiredAmount.mul(3));
+
+        // we sold NFT 2 ETH
+        const soldAmount = getBigNumber(2);
+        await expect(
+          this.tribeOne.connect(this.salesManager).postLiquidation(this.loanId, soldAmount, { value: soldAmount })
+        )
+          .to.emit(this.tribeOne, 'LoanPostLiquidation')
+          .withArgs(this.loanId, soldAmount, finalDebt);
+
+        // user will get back 2TH - finalDebt;
+        // @note all fee constants are zero
+        await expect(this.tribeOne.connect(this.alice).getBackFund(this.loanId))
+          .to.emit(this.tribeOne, 'RestWithdrew')
+          .withArgs(this.loanId, soldAmount.sub(finalDebt));
+      });
     });
   });
 });

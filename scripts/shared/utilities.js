@@ -1,7 +1,8 @@
 const { ethers } = require('hardhat');
 const { BigNumber } = ethers;
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
-
+const TENOR_UNIT = 4 * 7 * 24 * 3600; // 4 weeks
+const GRACE_PERIOD = 2 * 7 * 24 * 3600; // 2 weeks
 const NFT_TYPE = {
   ERC721: 0,
   ERC1155: 1
@@ -32,5 +33,7 @@ module.exports = {
   ZERO_ADDRESS,
   NFT_TYPE,
   STATUS,
+  TENOR_UNIT,
+  GRACE_PERIOD,
   getBigNumber
 };
