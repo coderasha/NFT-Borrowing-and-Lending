@@ -40,12 +40,12 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
     struct Loan {
         uint256 fundAmount; // the amount which user put in TribeOne to buy NFT
         uint256 paidAmount; // the amount that has been paid back to the lender to date
-        uint8 paidTenors; // the number of tenors which we can consider user passed
         uint256 loanStart; // the point when the loan is approved
-        uint8 nrOfPenalty;
         uint256 postTime; // the time when NFT set was sold in marketplace and that money was put in TribeOne
         uint256 restAmount; // rest amount after sending loan debt(+interest) and 5% penalty
         address borrower; // the address who receives the loan
+        uint8 nrOfPenalty;
+        uint8 paidTenors; // the number of tenors which we can consider user passed
         Asset loanAsset;
         Asset collateralAsset;
         Status status; // the loan status
