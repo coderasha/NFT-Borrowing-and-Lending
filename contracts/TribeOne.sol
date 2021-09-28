@@ -195,7 +195,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
 
     /**
      * @dev _loanId: loanId, _accepted: order to Partner is succeeded or not
-     * loan will be back to TribeOne if accepted false
+     * loan will be back to TribeOne if accepted is false
      */
     function relayNFT(
         uint256 _loanId,
