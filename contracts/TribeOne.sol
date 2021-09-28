@@ -11,8 +11,6 @@ import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "./interfaces/ITribeOne.sol";
 import "./libraries/TransferHelper.sol";
 
-import "hardhat/console.sol";
-
 contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, ReentrancyGuard {
     using Counters for Counters.Counter;
 
