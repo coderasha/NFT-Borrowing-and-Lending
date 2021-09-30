@@ -5,23 +5,11 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 
-// from uniswap SDK
-// helper methods for interacting with ERC20 tokens and sending ETH that do not consistently return true/false
-library TransferHelper {
+library TribeOneHelper {
     enum TokenType {
         ERC721,
         ERC1155
     }
-
-    // function safeApprove(
-    //     address token,
-    //     address to,
-    //     uint256 value
-    // ) internal {
-    //     // bytes4(keccak256(bytes('approve(address,uint256)')));
-    //     (bool success, bytes memory data) = token.call(abi.encodeWithSelector(0x095ea7b3, to, value));
-    //     require(success && (data.length == 0 || abi.decode(data, (bool))), "TransferHelper::safeApprove: approve failed");
-    // }
 
     function safeTransfer(
         address token,
@@ -30,7 +18,7 @@ library TransferHelper {
     ) internal {
         // bytes4(keccak256(bytes('transfer(address,uint256)')));
         (bool success, bytes memory data) = token.call(abi.encodeWithSelector(0xa9059cbb, to, value));
-        require(success && (data.length == 0 || abi.decode(data, (bool))), "TransferHelper::safeTransfer: transfer failed");
+        require(success && (data.length == 0 || abi.decode(data, (bool))), "TribeOneHelper::safeTransfer: transfer failed");
     }
 
     function safeTransferFrom(
@@ -41,12 +29,12 @@ library TransferHelper {
     ) internal {
         // bytes4(keccak256(bytes('transferFrom(address,address,uint256)')));
         (bool success, bytes memory data) = token.call(abi.encodeWithSelector(0x23b872dd, from, to, value));
-        require(success && (data.length == 0 || abi.decode(data, (bool))), "TransferHelper::transferFrom: transferFrom failed");
+        require(success && (data.length == 0 || abi.decode(data, (bool))), "TribeOneHelper::transferFrom: transferFrom failed");
     }
 
     function safeTransferETH(address to, uint256 value) internal {
         (bool success, ) = to.call{value: value}(new bytes(0));
-        require(success, "TransferHelper::safeTransferETH: ETH transfer failed");
+        require(success, "TribeOneHelper::safeTransferETH: ETH transfer failed");
     }
 
     function safeTransferAsset(
@@ -74,4 +62,13 @@ library TransferHelper {
             IERC1155(_nft).safeTransferFrom(_from, _to, _tokenId, 1, "0x00");
         }
     }
+
+    /**
+     * @dev this function calculates expected price of NFT based on created LTV and fund amount,
+     * LTV: 10000 = 100%; _slippage: 10000 = 100%
+     */
+    function getExpectedPrice(uint _fundAmount, uint _LTV, uint _slippage) internal pure returns(uint) {
+        require(_LTV != 0, "TribeOneHelper: LTV should not be 0");
+        return _fundAmount * (10000 + _slippage) / _LTV;
+    } 
 }
