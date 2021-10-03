@@ -35,6 +35,12 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         address currency; // address(0) is BNB native coin
     }
 
+    struct LoanRules {
+        uint16 tenor;
+        uint16 LTV; // 10000 - 100%
+        uint16 interest; // 10000 - 100%
+    }
+
     struct Loan {
         uint256 fundAmount; // the amount which user put in TribeOne to buy NFT
         uint256 paidAmount; // the amount that has been paid back to the lender to date
@@ -47,7 +53,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         Asset loanAsset;
         Asset collateralAsset;
         Status status; // the loan status
-        uint16[] loanRules; // tenor, LTV: 10000 - 100%, interest: 10000 - 100%,
+        LoanRules loanRules;
         address[] nftAddressArray; // the adderess of the ERC721
         uint256[] nftTokenIdArray; // the unique identifier of the NFT token that the borrower uses as collateral
         TribeOneHelper.TokenType[] nftTokenTypeArray; // the token types : ERC721 , ERC1155 , ...
@@ -56,7 +62,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
     mapping(uint256 => Loan) public loans; // loanId => Loan
     Counters.Counter public loanIds; // loanId is from No.1
     // uint public loanLength;
-    uint public constant MAX_SLIPPAGE = 500; // 5%
+    uint256 public constant MAX_SLIPPAGE = 500; // 5%
     uint256 public constant TENOR_UNIT = 4 weeks; // installment should be pay at least in every 4 weeks
     uint256 public constant GRACE_PERIOD = 14 days; // 2 weeks
     address private agentProxy;
@@ -91,28 +97,55 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
 
     receive() external payable {}
 
+    function getLoanAsset(uint256 _loanId) external view returns (address _token, uint256 _amount) {
+        _token = loans[_loanId].loanAsset.currency;
+        _amount = loans[_loanId].loanAsset.amount;
+    }
+
+    function getCollateralAsset(uint256 _loanId) external view returns (address _token, uint256 _amount) {
+        _token = loans[_loanId].collateralAsset.currency;
+        _amount = loans[_loanId].collateralAsset.amount;
+    }
+
+    function getLoanRules(uint256 _loanId)
+        external
+        view
+        returns (
+            uint16 tenor,
+            uint16 LTV,
+            uint16 interest
+        )
+    {
+        tenor = loans[_loanId].loanRules.tenor;
+        LTV = loans[_loanId].loanRules.LTV;
+        interest = loans[_loanId].loanRules.interest;
+    }
+
+    function getLoanNFTCount(uint256 _loanId) external view returns (uint256) {
+        return loans[_loanId].nftAddressArray.length;
+    }
+
+    function getLoanNFTItem(uint256 _loanId, uint256 _nftItemId) external view returns (address _nftAddress, uint256 _tokenId) {
+        _nftAddress = loans[_loanId].nftAddressArray[_nftItemId];
+        _tokenId = loans[_loanId].nftTokenIdArray[_nftItemId];
+    }
+
     modifier onlyAgent() {
         require(msg.sender == agentProxy, "TribeOne: Forbidden");
         _;
     }
 
-    function setAgentProxy(address _agentProxy) external onlyOwner {
+    function setSettings(
+        address _agentProxy,
+        address _feeTo,
+        uint256 _lateFee,
+        uint256 _penaltyFee,
+        address _salesManager
+    ) external onlyOwner {
         agentProxy = _agentProxy;
-    }
-
-    function setFeeTo(address _feeTo) external onlyOwner {
         feeTo = _feeTo;
-    }
-
-    function setLateFee(uint256 _lateFee) external onlyOwner {
         LATE_FEE = _lateFee;
-    }
-
-    function setPenalyFee(uint256 _penaltyFee) external onlyOwner {
         PENALTY_FEE = _penaltyFee;
-    }
-
-    function setSalesManager(address _salesManager) external onlyOwner {
         salesManager = _salesManager;
     }
 
@@ -125,6 +158,9 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         TribeOneHelper.TokenType[] memory nftTokenTypeArray
     ) external payable {
         require(_loanRules.length == 3 && _amounts.length == 2, "TribeOne: Invalid parameter");
+        uint16 tenor = _loanRules[0];
+        uint16 LTV = _loanRules[1];
+        uint16 interest = _loanRules[2];
         require(_loanRules[1] > 0, "TribeOne: LTV should not be ZERO");
         require(_loanRules[0] > 0, "TribeOne: Loan must have at least 1 installment");
         require(nftAddressArray.length > 0, "TribeOne: Loan must have atleast 1 NFT");
@@ -156,7 +192,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         loans[loanID].borrower = _msgSender();
         loans[loanID].loanAsset = Asset({currency: _loanCurrency, amount: 0});
         loans[loanID].collateralAsset = Asset({currency: _collateralCurrency, amount: _collateralAmount});
-        loans[loanID].loanRules = _loanRules;
+        loans[loanID].loanRules = LoanRules({tenor: tenor, LTV: LTV, interest: interest});
         loans[loanID].nftTokenIdArray = nftTokenIdArray;
         loans[loanID].fundAmount = _fundAmount;
 
@@ -172,11 +208,11 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         address _agent
     ) external override onlyAgent nonReentrant {
         require(loans[_loanId].status == Status.LISTED, "TribeOne: Invalid request");
-        
-        uint _fundAmount = loans[_loanId].fundAmount;
-        uint _LTV = loans[_loanId].loanRules[1];
 
-        uint expectedPrice = TribeOneHelper.getExpectedPrice(_fundAmount, _LTV, MAX_SLIPPAGE);
+        uint256 _fundAmount = loans[_loanId].fundAmount;
+        uint256 _LTV = loans[_loanId].loanRules.LTV;
+
+        uint256 expectedPrice = TribeOneHelper.getExpectedPrice(_fundAmount, _LTV, MAX_SLIPPAGE);
         require(_amount <= expectedPrice, "TribeOne: Invalid amount");
 
         loans[_loanId].status = Status.APPROVED;
@@ -255,8 +291,9 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         uint256 paidAmount = _loan.paidAmount;
         uint256 _totalDebt = totalDebt(_loanId);
         {
-            // uint16[] calldata _loanRules, // tenor, LTV, interest,
-            uint256 expectedAmount = (_totalDebt * expectedNr) / _loan.loanRules[0];
+            // tenor, LTV, interest,
+            // uint256 expectedAmount = (_totalDebt * expectedNr) / _loan.loanRules[0];
+            uint256 expectedAmount = (_totalDebt * expectedNr) / _loan.loanRules.tenor;
             require(paidAmount + _amount >= expectedAmount, "TribeOne: Insufficient Amount");
             // out of rule, penalty
             updatePenalty(_loanId);
@@ -278,7 +315,8 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         }
 
         loans[_loanId].paidAmount += _amount;
-        loans[_loanId].paidTenors = uint8((loans[_loanId].paidAmount * _loan.loanRules[0]) / _totalDebt);
+        // loans[_loanId].paidTenors = uint8((loans[_loanId].paidAmount * _loan.loanRules[0]) / _totalDebt);
+        loans[_loanId].paidTenors = uint8((loans[_loanId].paidAmount * _loan.loanRules.tenor) / _totalDebt);
 
         if (loans[_loanId].status == Status.DEFAULTED) {
             loans[_loanId].status = Status.LOANACTIVED;
@@ -297,7 +335,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         emit InstallmentPaid(_loanId, msg.sender, _loanCurrency, _amount);
     }
 
-    function withdrawNFT(uint256 _loanId) public nonReentrant {
+    function withdrawNFT(uint256 _loanId) external nonReentrant {
         _withdrawNFT(_loanId);
     }
 
@@ -334,16 +372,18 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
     }
 
     function totalDebt(uint256 _loanId) public view returns (uint256) {
-        return (loans[_loanId].loanAsset.amount * (10000 + loans[_loanId].loanRules[2])) / 10000;
+        // return (loans[_loanId].loanAsset.amount * (10000 + loans[_loanId].loanRules[2])) / 10000;
+        return (loans[_loanId].loanAsset.amount * (10000 + loans[_loanId].loanRules.interest)) / 10000;
     }
 
     /**
      *@dev when user in Tenor 2 (from tenor 1 to tenor 2, we expect at least one time payment)
      */
-    function expectedNrOfPayments(uint256 _loanId) public view returns (uint256) {
+    function expectedNrOfPayments(uint256 _loanId) private view returns (uint256) {
         uint256 loanStart = loans[_loanId].loanStart;
         uint256 _expected = (block.timestamp - loanStart) / TENOR_UNIT;
-        uint256 _tenor = loans[_loanId].loanRules[0];
+        // uint256 _tenor = loans[_loanId].loanRules[0];
+        uint256 _tenor = loans[_loanId].loanRules.tenor;
         return _expected > _tenor ? _tenor : _expected;
     }
 

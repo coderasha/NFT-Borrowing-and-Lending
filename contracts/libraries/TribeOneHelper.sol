@@ -67,8 +67,12 @@ library TribeOneHelper {
      * @dev this function calculates expected price of NFT based on created LTV and fund amount,
      * LTV: 10000 = 100%; _slippage: 10000 = 100%
      */
-    function getExpectedPrice(uint _fundAmount, uint _LTV, uint _slippage) internal pure returns(uint) {
+    function getExpectedPrice(
+        uint256 _fundAmount,
+        uint256 _LTV,
+        uint256 _slippage
+    ) internal pure returns (uint256) {
         require(_LTV != 0, "TribeOneHelper: LTV should not be 0");
-        return _fundAmount * (10000 + _slippage) / _LTV;
-    } 
+        return (_fundAmount * (10000 + _slippage)) / _LTV;
+    }
 }
