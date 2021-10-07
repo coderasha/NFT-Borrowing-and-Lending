@@ -1,26 +1,35 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interfaces/ITribeOne.sol";
-import "hardhat/console.sol";
+import "./libraries/Timelock.sol";
 
-contract AgentProxy is Ownable {
-    mapping(address => bool) private AGENT_LIST;
+contract AgentProxy is Ownable, Timelock {
+    event AddedAgent(address _setter, address _agent);
+    event RemovedAgent(address _setter, address _agent);
+
+    mapping(address => bool) private agentList;
 
     constructor() {}
 
     modifier onlyAgent() {
-        require(AGENT_LIST[msg.sender], "TribeOne: Forbidden");
+        require(agentList[msg.sender], "TribeOne: Forbidden");
         _;
     }
 
-    function addAgent(address _agent) external onlyOwner {
-        AGENT_LIST[_agent] = true;
+    function addAgent(address _agent) external onlyOwner notLocked {
+        require(!agentList[_agent], "Already agent");
+        agentList[_agent] = true;
+        lock();
+        emit AddedAgent(msg.sender, _agent);
     }
 
     function removeAgent(address _agent) external onlyOwner {
-        AGENT_LIST[_agent] = false;
+        require(agentList[_agent], "Already removed");
+        agentList[_agent] = false;
+
+        emit RemovedAgent(msg.sender, _agent);
     }
 
     // We can use low level function, too

@@ -28,10 +28,17 @@ describe('TribeOne', function () {
     this.alice = this.signers[4];
     this.bob = this.signers[5];
     this.todd = this.signers[6];
+    
+    // Adding agent
+    this.agentProxy = await this.AgentProxy.deploy();
+    await this.agentProxy.unlock();
+    const currentStamp = ~~(new Date().getTime() / 1000);
+    network.provider.send('evm_setNextBlockTimestamp', [currentStamp + 3 * 24 * 3600]);
+    await network.provider.send('evm_mine');
+    await this.agentProxy.addAgent(this.agent.address);
   });
 
   beforeEach(async function () {
-    this.agentProxy = await this.AgentProxy.deploy();
     this.feeCurrency = await this.MockERC20.deploy('MockUSDT', 'MockUSDT'); // will be used for late fee
     this.collateralCurrency = await this.MockERC20.deploy('MockUSDC', 'MockUSDC'); // wiil be used for collateral
     this.tribeOne = await this.TribeOne.deploy(
@@ -45,9 +52,6 @@ describe('TribeOne', function () {
     this.erc721NFT = await this.MockERC721.deploy('TribeOne', 'TribeOne');
     this.erc1155NFT = await this.MockERC1155.connect(this.agent).deploy();
     await this.erc721NFT.batchMintTo(this.agent.address, 10);
-
-    // Adding agent
-    await this.agentProxy.addAgent(this.agent.address);
 
     // Transfering 10 ETH to TribeOne
     await ethers.provider.send('eth_sendTransaction', [
