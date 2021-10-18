@@ -12,7 +12,7 @@ import "./interfaces/ITribeOne.sol";
 import "./libraries/Timelock.sol";
 import "./libraries/TribeOneHelper.sol";
 
-contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, ReentrancyGuard, Timelock {
+contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, ReentrancyGuard {
     using Counters for Counters.Counter;
 
     enum Status {
@@ -50,7 +50,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         uint256 restAmount; // rest amount after sending loan debt(+interest) and 5% penalty
         address borrower; // the address who receives the loan
         uint8 nrOfPenalty;
-        uint8 paidTenors; // the number of tenors which we can consider user passed
+        uint8 passedTenors; // the number of tenors which we can consider user passed
         Asset loanAsset;
         Asset collateralAsset;
         Status status; // the loan status
@@ -66,7 +66,6 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
     uint256 public constant MAX_SLIPPAGE = 500; // 5%
     uint256 public constant TENOR_UNIT = 4 weeks; // installment should be pay at least in every 4 weeks
     uint256 public constant GRACE_PERIOD = 14 days; // 2 weeks
-    address private agentProxy;
     address public salesManager;
     address public feeTo;
     address public immutable feeCurrency; // stable coin such as USDC, late fee $5
@@ -83,30 +82,26 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
     event LoanLiquidation(uint256 indexed _loanId, address _salesManager);
     event LoanPostLiquidation(uint256 indexed _loanId, uint256 _soldAmount, uint256 _finalDebt);
     event RestWithdrew(uint256 indexed _loanId, uint256 _amount);
-    event SettingsUpdate(address _agentProxy, address _feeTo, uint256 _lateFee,  uint256 _penaltyFee, address _salesManager);
+    event SettingsUpdate(address _feeTo, uint256 _lateFee, uint256 _penaltyFee, address _salesManager);
 
     constructor(
-        address _agentProxy,
         address _salesManager,
         address _feeTo,
-        address _feeCurrency
+        address _feeCurrency,
+        address _multiSigWallet
     ) {
         require(
-            _agentProxy != address(0) && _salesManager != address(0) && _feeTo != address(0) && _feeCurrency != address(0),
+            _salesManager != address(0) && _feeTo != address(0) && _feeCurrency != address(0) && _multiSigWallet != address(0),
             "TribeOne: ZERO address"
         );
-        agentProxy = _agentProxy;
         salesManager = _salesManager;
         feeTo = _feeTo;
         feeCurrency = _feeCurrency;
+
+        transferOwnership(_multiSigWallet);
     }
 
     receive() external payable {}
-
-    modifier onlyAgent() {
-        require(msg.sender == agentProxy, "TribeOne: Forbidden");
-        _;
-    }
 
     function getLoanAsset(uint256 _loanId) external view returns (address _token, uint256 _amount) {
         _token = loans[_loanId].loanAsset.currency;
@@ -142,21 +137,17 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
     }
 
     function setSettings(
-        address _agentProxy,
         address _feeTo,
         uint256 _lateFee,
         uint256 _penaltyFee,
         address _salesManager
-    ) external onlyOwner notLocked {
-        require(_agentProxy != address(0) && _salesManager != address(0) && _feeTo != address(0), "TribeOne: ZERO address");
-        agentProxy = _agentProxy;
+    ) external onlyOwner {
+        require(_salesManager != address(0) && _feeTo != address(0), "TribeOne: ZERO address");
         feeTo = _feeTo;
         lateFee = _lateFee;
         penaltyFee = _penaltyFee;
         salesManager = _salesManager;
-
-        lock();
-        emit SettingsUpdate(_agentProxy, _feeTo, _lateFee,  _penaltyFee, _salesManager);
+        emit SettingsUpdate(_feeTo, _lateFee, _penaltyFee, _salesManager);
     }
 
     function createLoan(
@@ -216,7 +207,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         uint256 _loanId,
         uint256 _amount,
         address _agent
-    ) external override onlyAgent nonReentrant {
+    ) external override onlyOwner nonReentrant {
         require(loans[_loanId].status == Status.LISTED, "TribeOne: Invalid request");
         require(_agent != address(0), "TribeOne: ZERO address");
 
@@ -250,7 +241,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         uint256 _loanId,
         address _agent,
         bool _accepted
-    ) external payable override onlyAgent nonReentrant {
+    ) external payable override onlyOwner nonReentrant {
         require(loans[_loanId].status == Status.APPROVED, "TribeOne: Not approved loan");
         require(_agent != address(0), "TribeOne: ZERO address");
         if (_accepted) {
@@ -307,7 +298,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
             uint256 expectedAmount = (_totalDebt * expectedNr) / _loan.loanRules.tenor;
             require(paidAmount + _amount >= expectedAmount, "TribeOne: Insufficient Amount");
             // out of rule, penalty
-            updatePenalty(_loanId);
+            _updatePenalty(_loanId);
         }
 
         // Transfer asset from msg.sender to contract
@@ -326,8 +317,11 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         }
 
         loans[_loanId].paidAmount += _amount;
-        // loans[_loanId].paidTenors = uint8((loans[_loanId].paidAmount * _loan.loanRules[0]) / _totalDebt);
-        loans[_loanId].paidTenors = uint8((loans[_loanId].paidAmount * _loan.loanRules.tenor) / _totalDebt);
+        uint256 passedTenors = (loans[_loanId].paidAmount * _loan.loanRules.tenor) / _totalDebt;
+
+        if (passedTenors > loans[_loanId].passedTenors) {
+            loans[_loanId].passedTenors = uint8(passedTenors);
+        }
 
         if (loans[_loanId].status == Status.DEFAULTED) {
             loans[_loanId].status = Status.LOANACTIVED;
@@ -358,7 +352,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         loans[_loanId].status = Status.WITHDRAWN;
 
         if (_loan.nrOfPenalty > 0) {
-            uint256 _totalLateFee = _loan.nrOfPenalty * lateFee * IERC20Metadata(feeCurrency).decimals();
+            uint256 _totalLateFee = _loan.nrOfPenalty * lateFee * (10**IERC20Metadata(feeCurrency).decimals());
             TribeOneHelper.safeTransferFrom(feeCurrency, _sender, address(feeTo), _totalLateFee);
         }
 
@@ -373,12 +367,18 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         emit NFTWithdrew(_loanId, _sender);
     }
 
-    function updatePenalty(uint256 _loanId) public {
+    function updatePenalty(uint256 _loanId) external nonReentrant {
+        _updatePenalty(_loanId);
+    }
+
+    function _updatePenalty(uint256 _loanId) private {
         Loan memory _loan = loans[_loanId];
         require(_loan.status == Status.LOANACTIVED || _loan.status == Status.DEFAULTED, "TribeOne: Not actived loan");
         uint256 expectedNr = expectedNrOfPayments(_loanId);
-        if (expectedNr > loans[_loanId].paidTenors) {
-            loans[_loanId].nrOfPenalty += uint8(expectedNr - loans[_loanId].paidTenors);
+        uint256 passedTenors = loans[_loanId].passedTenors;
+        if (expectedNr > passedTenors) {
+            loans[_loanId].passedTenors = uint8(expectedNr);
+            loans[_loanId].nrOfPenalty += uint8(expectedNr - passedTenors);
         }
     }
 
@@ -397,13 +397,14 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
     }
 
     function expectedLastPaymentTime(uint256 _loanId) public view returns (uint256) {
-        return loans[_loanId].loanStart + TENOR_UNIT * (loans[_loanId].paidTenors + 1);
+        return loans[_loanId].loanStart + TENOR_UNIT * (loans[_loanId].passedTenors);
     }
 
     function setLoanDefaulted(uint256 _loanId) external nonReentrant {
         require(loans[_loanId].status == Status.LOANACTIVED, "TribeOne: Invalid status");
         require(expectedLastPaymentTime(_loanId) < block.timestamp, "TribeOne: Not overdued date yet");
-        updatePenalty(_loanId);
+
+        _updatePenalty(_loanId);
         loans[_loanId].status = Status.DEFAULTED;
 
         emit LoanDefaulted(_loanId);
@@ -523,6 +524,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         require(_loan.borrower == _msgSender() && _loan.status == Status.LISTED, "TribeOne: Forbidden");
         loans[_loanId].status = Status.CANCELLED;
         returnColleteral(_loanId);
+        returnFund(_loanId);
         emit LoanCanceled(_loanId, _msgSender());
     }
 
@@ -540,7 +542,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
     function returnFund(uint256 _loanId) private {
         Loan memory _loan = loans[_loanId];
         address _currency = _loan.loanAsset.currency;
-        uint256 _amount = _loan.loanAsset.amount;
+        uint256 _amount = _loan.fundAmount;
         address _to = _loan.borrower;
         TribeOneHelper.safeTransferAsset(_currency, _to, _amount);
     }

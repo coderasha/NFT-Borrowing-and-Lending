@@ -15,7 +15,7 @@ const {
 describe('TribeOne', function () {
   before(async function () {
     this.TribeOne = await ethers.getContractFactory('TribeOne');
-    this.AgentProxy = await ethers.getContractFactory('AgentProxy');
+    this.MultiSigWallet = await ethers.getContractFactory('MultiSigWallet');
     this.MockERC20 = await ethers.getContractFactory('MockERC20');
     this.MockERC721 = await ethers.getContractFactory('MockERC721');
     this.MockERC1155 = await ethers.getContractFactory('MockERC1155');
@@ -28,25 +28,22 @@ describe('TribeOne', function () {
     this.alice = this.signers[4];
     this.bob = this.signers[5];
     this.todd = this.signers[6];
-    
-    // Adding agent
-    this.agentProxy = await this.AgentProxy.deploy();
-    await this.agentProxy.unlock();
-    const currentStamp = ~~(new Date().getTime() / 1000);
-    network.provider.send('evm_setNextBlockTimestamp', [currentStamp + 3 * 24 * 3600]);
-    await network.provider.send('evm_mine');
-    await this.agentProxy.addAgent(this.agent.address);
   });
 
   beforeEach(async function () {
     this.feeCurrency = await this.MockERC20.deploy('MockUSDT', 'MockUSDT'); // will be used for late fee
     this.collateralCurrency = await this.MockERC20.deploy('MockUSDC', 'MockUSDC'); // wiil be used for collateral
-    this.tribeOne = await this.TribeOne.deploy(
-      this.agentProxy.address,
-      this.salesManager.address,
-      this.feeTo.address,
-      this.feeCurrency.address
-    );
+    this.multiSigWallet = await (
+      await this.MultiSigWallet.deploy([this.signers[0].address, this.signers[1].address, this.signers[2].address], 2)
+    ).deployed();
+    this.tribeOne = await (
+      await this.TribeOne.deploy(
+        this.salesManager.address,
+        this.feeTo.address,
+        this.feeCurrency.address,
+        this.multiSigWallet.address
+      )
+    ).deployed();
 
     // Preparing NFT
     this.erc721NFT = await this.MockERC721.deploy('TribeOne', 'TribeOne');
@@ -92,11 +89,17 @@ describe('TribeOne', function () {
     console.log('Approving loan...');
     const loanId = 1;
     const amount = getBigNumber(2);
-    await expect(
-      this.agentProxy
-        .connect(this.agent)
-        .approveLoan(this.tribeOne.address, loanId, amount, { from: this.agent.address })
-    )
+
+    const approveCallData = this.tribeOne.interface.encodeFunctionData('approveLoan', [
+      loanId,
+      amount,
+      this.agent.address
+    ]);
+    await this.multiSigWallet.submitTransaction(this.tribeOne.address, 0, approveCallData);
+    await this.multiSigWallet.confirmTransaction(0, false);
+    await this.multiSigWallet.connect(this.signers[1]).confirmTransaction(0, false);
+
+    await expect(this.multiSigWallet.executeTransaction(0))
       .to.emit(this.tribeOne, 'LoanApproved')
       .withArgs(loanId, this.agent.address, ZERO_ADDRESS, amount);
   });
@@ -125,11 +128,18 @@ describe('TribeOne', function () {
       this.loanId = 1;
       this.loanAmount = getBigNumber(12, 17);
       const amount = this.loanAmount.add(_amounts[0]);
-      await expect(
-        this.agentProxy
-          .connect(this.agent)
-          .approveLoan(this.tribeOne.address, this.loanId, amount, { from: this.agent.address })
-      )
+
+      const txId = 0;
+      const approveCallData = this.tribeOne.interface.encodeFunctionData('approveLoan', [
+        this.loanId,
+        amount,
+        this.agent.address
+      ]);
+      await this.multiSigWallet.submitTransaction(this.tribeOne.address, 0, approveCallData);
+      await this.multiSigWallet.confirmTransaction(txId, false);
+      await this.multiSigWallet.connect(this.signers[1]).confirmTransaction(txId, false);
+
+      await expect(this.multiSigWallet.executeTransaction(txId))
         .to.emit(this.tribeOne, 'LoanApproved')
         .withArgs(this.loanId, this.agent.address, ZERO_ADDRESS, amount);
 
@@ -138,9 +148,19 @@ describe('TribeOne', function () {
 
     it('Should return callateral and fund amount to borrower', async function () {
       const loanAmount = this.createdLoan.loanAsset.amount;
-      await expect(
-        this.agentProxy.connect(this.agent).relayNFT(this.tribeOne.address, this.loanId, false, { value: loanAmount })
-      )
+      const encodedCallData = this.tribeOne.interface.encodeFunctionData('relayNFT', [
+        this.loanId,
+        this.agent.address,
+        false
+      ]);
+      const txId = 1;
+      await this.multiSigWallet.submitTransaction(this.tribeOne.address, loanAmount, encodedCallData, {
+        value: loanAmount
+      });
+      await this.multiSigWallet.confirmTransaction(txId, false);
+      await this.multiSigWallet.connect(this.signers[1]).confirmTransaction(txId, false);
+
+      await expect(this.multiSigWallet.executeTransaction(txId))
         .to.emit(this.tribeOne, 'NFTRelayed')
         .withArgs(this.loanId, this.agent.address, false);
     });
@@ -157,8 +177,18 @@ describe('TribeOne', function () {
             : await this.MockERC1155.attach(nftTokenAddressArray[ii]);
         await nftContract.connect(this.agent).setApprovalForAll(this.tribeOne.address, true);
       }
-      //[NFT_TYPE.ERC721, NFT_TYPE.ERC721, NFT_TYPE.ERC1155];
-      await expect(this.agentProxy.connect(this.agent).relayNFT(this.tribeOne.address, this.loanId, true))
+
+      const txId = 1;
+      const encodedCallData = this.tribeOne.interface.encodeFunctionData('relayNFT', [
+        this.loanId,
+        this.agent.address,
+        true
+      ]);
+      await this.multiSigWallet.submitTransaction(this.tribeOne.address, 0, encodedCallData);
+      await this.multiSigWallet.confirmTransaction(txId, false);
+      await this.multiSigWallet.connect(this.signers[1]).confirmTransaction(txId, false);
+
+      await expect(this.multiSigWallet.executeTransaction(txId))
         .to.emit(this.tribeOne, 'NFTRelayed')
         .withArgs(this.loanId, this.agent.address, true);
     });
@@ -180,8 +210,21 @@ describe('TribeOne', function () {
               : await this.MockERC1155.attach(nftTokenAddressArray[ii]);
           await nftContract.connect(this.agent).setApprovalForAll(this.tribeOne.address, true);
         }
-        //[NFT_TYPE.ERC721, NFT_TYPE.ERC721, NFT_TYPE.ERC1155];
-        await this.agentProxy.connect(this.agent).relayNFT(this.tribeOne.address, this.loanId, true);
+
+        //[NFT_TYPE.ERC721, NFT_TYPE.ERC1155];
+        const txId = 1;
+        const encodedCallData = this.tribeOne.interface.encodeFunctionData('relayNFT', [
+          this.loanId,
+          this.agent.address,
+          true
+        ]);
+        await this.multiSigWallet.submitTransaction(this.tribeOne.address, 0, encodedCallData);
+        await this.multiSigWallet.confirmTransaction(txId, false);
+        await this.multiSigWallet.connect(this.signers[1]).confirmTransaction(txId, false);
+
+        await expect(this.multiSigWallet.executeTransaction(txId))
+          .to.emit(this.tribeOne, 'NFTRelayed')
+          .withArgs(this.loanId, this.agent.address, true);
       });
 
       it('Total debt', async function () {
@@ -222,42 +265,41 @@ describe('TribeOne', function () {
 
       it('Pay installment and withdraw NFT with one penalty', async function () {
         // Paid 0.2ETH for installment
-        // const totalDebt = await this.tribeOne.totalDebt(this.loanId);
-        // const desiredAmount = totalDebt.div(6);
-        // let createdLoan = await this.tribeOne.loans(this.loanId);
-        // const loanStart = createdLoan.loanStart;
-        // for (let ii = 0; ii < 3; ii++) {
-        //   await expect(
-        //     this.tribeOne.connect(this.alice).payInstallment(this.loanId, desiredAmount, { value: desiredAmount })
-        //   )
-        //     .to.emit(this.tribeOne, 'InstallmentPaid')
-        //     .withArgs(this.loanId, this.alice.address, ZERO_ADDRESS, desiredAmount);
-        // }
-        // // 4 * 4 weeks and 3 days
-        // const after4Tenor = Number(loanStart.toString()) + TENOR_UNIT * 4;
-        // network.provider.send('evm_setNextBlockTimestamp', [after4Tenor + 3 * 24 * 3600]);
-        // await network.provider.send('evm_mine');
-        // // Testing penalty
-        // await this.tribeOne.updatePenalty(this.loanId);
-        // createdLoan = await this.tribeOne.loans(this.loanId);
-        // nrOfPenalty = createdLoan.nrOfPenalty;
-        // expect(nrOfPenalty).equal(1);
-        // for (let ii = 0; ii < 3; ii++) {
-        //   await expect(
-        //     this.tribeOne.connect(this.alice).payInstallment(this.loanId, desiredAmount, { value: desiredAmount })
-        //   )
-        //     .to.emit(this.tribeOne, 'InstallmentPaid')
-        //     .withArgs(this.loanId, this.alice.address, ZERO_ADDRESS, desiredAmount);
-        // }
+        const totalDebt = await this.tribeOne.totalDebt(this.loanId);
+        const desiredAmount = totalDebt.div(6);
+        let createdLoan = await this.tribeOne.loans(this.loanId);
+        const loanStart = createdLoan.loanStart;
+        for (let ii = 0; ii < 3; ii++) {
+          await expect(
+            this.tribeOne.connect(this.alice).payInstallment(this.loanId, desiredAmount, { value: desiredAmount })
+          )
+            .to.emit(this.tribeOne, 'InstallmentPaid')
+            .withArgs(this.loanId, this.alice.address, ZERO_ADDRESS, desiredAmount);
+        }
+        // 4 * 4 weeks and 3 days
+        const after4Tenor = Number(loanStart.toString()) + TENOR_UNIT * 4;
+        network.provider.send('evm_setNextBlockTimestamp', [after4Tenor + 3 * 24 * 3600]);
+        await network.provider.send('evm_mine');
+        // Testing penalty
+        await this.tribeOne.updatePenalty(this.loanId);
+        createdLoan = await this.tribeOne.loans(this.loanId);
+        nrOfPenalty = createdLoan.nrOfPenalty;
+        expect(nrOfPenalty).equal(1);
+
+        for (let ii = 0; ii < 3; ii++) {
+          await expect(
+            this.tribeOne.connect(this.alice).payInstallment(this.loanId, desiredAmount, { value: desiredAmount })
+          )
+            .to.emit(this.tribeOne, 'InstallmentPaid')
+            .withArgs(this.loanId, this.alice.address, ZERO_ADDRESS, desiredAmount);
+        }
         // await expect(this.tribeOne.connect(this.alice).withdrawNFT(this.loanId)).to.be.revertedWith(
         //   'TransferHelper::transferFrom: transferFrom failed'
         // );
-        // await this.feeCurrency.connect(this.alice).approve(this.tribeOne.address, getBigNumber(1000000));
-        // await expect(
-        //   this.tribeOne.connect(this.alice).withdrawNFT(this.loanId)
-        // )
-        //   .to.emit(this.tribeOne, 'NFTWithdrew')
-        //   .withArgs(this.loanId, this.alice.address);
+        await this.feeCurrency.connect(this.alice).approve(this.tribeOne.address, getBigNumber(1000000));
+        await expect(this.tribeOne.connect(this.alice).withdrawNFT(this.loanId))
+          .to.emit(this.tribeOne, 'NFTWithdrew')
+          .withArgs(this.loanId, this.alice.address);
       });
 
       it('Put NFT in Liquidation and user get back the rest', async function () {
