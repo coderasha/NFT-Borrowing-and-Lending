@@ -1,15 +1,6 @@
 const { BigNumber } = require('@ethersproject/bignumber');
-const { keccak256 } = require('@ethersproject/keccak256');
 const { expect } = require('chai');
 const { ethers, network } = require('hardhat');
-const {
-  ZERO_ADDRESS,
-  getBigNumber,
-  NFT_TYPE,
-  STATUS,
-  TENOR_UNIT,
-  GRACE_PERIOD
-} = require('../scripts/shared/utilities');
 
 /**
  * We assume loan currency is native coin
@@ -18,6 +9,7 @@ describe('MultiSigWallet', function () {
   before(async function () {
     this.TribeOne = await ethers.getContractFactory('TribeOne');
     this.MultiSigWallet = await ethers.getContractFactory('MultiSigWallet');
+    this.AssetManager = await ethers.getContractFactory('AssetManager');
     this.MockERC20 = await ethers.getContractFactory('MockERC20');
     this.MultiWalletTest = await ethers.getContractFactory('MultiWalletTest');
 
@@ -39,6 +31,8 @@ describe('MultiSigWallet', function () {
     this.feeCurrency = await this.MockERC20.deploy('MockUSDT', 'MockUSDT'); // will be used for late fee
     this.collateralCurrency = await this.MockERC20.deploy('MockUSDC', 'MockUSDC'); // wiil be used for collateral
 
+    this.assetManager = await this.AssetManager.deploy();
+
     this.multiSigWallet = await (
       await this.MultiSigWallet.deploy(this.owners, this.numConfirmationsRequired)
     ).deployed();
@@ -48,7 +42,8 @@ describe('MultiSigWallet', function () {
         this.salesManager.address,
         this.feeTo.address,
         this.feeCurrency.address,
-        this.multiSigWallet.address
+        this.multiSigWallet.address,
+        this.assetManager.address
       )
     ).deployed();
 
@@ -72,6 +67,7 @@ describe('MultiSigWallet', function () {
       this.signers[0].address,
       10,
       10,
+      this.signers[1].address,
       this.signers[1].address
     ]);
 
@@ -98,7 +94,13 @@ describe('MultiSigWallet', function () {
 
     await expect(this.multiSigWallet.connect(this.signers[1]).executeTransaction(txIdx))
       .to.emit(this.tribeOne, 'SettingsUpdate')
-      .withArgs(this.signers[0].address, BigNumber.from(10), BigNumber.from(10), this.signers[1].address);
+      .withArgs(
+        this.signers[0].address,
+        BigNumber.from(10),
+        BigNumber.from(10),
+        this.signers[1].address,
+        this.signers[1].address
+      );
 
     await expect(this.multiSigWallet.executeTransaction(txIdx)).to.be.revertedWith('tx already executed');
   });

@@ -9,7 +9,7 @@ import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "./interfaces/ITribeOne.sol";
-import "./libraries/Timelock.sol";
+import "./interfaces/IAssetManager.sol";
 import "./libraries/TribeOneHelper.sol";
 
 contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, ReentrancyGuard {
@@ -67,6 +67,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
     uint256 public constant TENOR_UNIT = 4 weeks; // installment should be pay at least in every 4 weeks
     uint256 public constant GRACE_PERIOD = 14 days; // 2 weeks
     address public salesManager;
+    address public assetManager;
     address public feeTo;
     address public immutable feeCurrency; // stable coin such as USDC, late fee $5
     uint256 public lateFee; // we will set it 5 USD for each tenor late
@@ -82,19 +83,21 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
     event LoanLiquidation(uint256 indexed _loanId, address _salesManager);
     event LoanPostLiquidation(uint256 indexed _loanId, uint256 _soldAmount, uint256 _finalDebt);
     event RestWithdrew(uint256 indexed _loanId, uint256 _amount);
-    event SettingsUpdate(address _feeTo, uint256 _lateFee, uint256 _penaltyFee, address _salesManager);
+    event SettingsUpdate(address _feeTo, uint256 _lateFee, uint256 _penaltyFee, address _salesManager, address _assetManager);
 
     constructor(
         address _salesManager,
         address _feeTo,
         address _feeCurrency,
-        address _multiSigWallet
+        address _multiSigWallet,
+        address _assetManager
     ) {
         require(
             _salesManager != address(0) && _feeTo != address(0) && _feeCurrency != address(0) && _multiSigWallet != address(0),
             "TribeOne: ZERO address"
         );
         salesManager = _salesManager;
+        assetManager = _assetManager;
         feeTo = _feeTo;
         feeCurrency = _feeCurrency;
 
@@ -140,14 +143,16 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         address _feeTo,
         uint256 _lateFee,
         uint256 _penaltyFee,
-        address _salesManager
+        address _salesManager,
+        address _assetManager
     ) external onlyOwner {
         require(_salesManager != address(0) && _feeTo != address(0), "TribeOne: ZERO address");
         feeTo = _feeTo;
         lateFee = _lateFee;
         penaltyFee = _penaltyFee;
         salesManager = _salesManager;
-        emit SettingsUpdate(_feeTo, _lateFee, _penaltyFee, _salesManager);
+        assetManager = _assetManager;
+        emit SettingsUpdate(_feeTo, _lateFee, _penaltyFee, _salesManager, assetManager);
     }
 
     function createLoan(
@@ -167,6 +172,8 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         require(nftAddressArray.length > 0, "TribeOne: Loan must have atleast 1 NFT");
         address _collateralCurrency = _currencies[1];
         address _loanCurrency = _currencies[0];
+        // require(isAvailableLoanAsset(_loanCurrency), "TribeOne: Loan asset is not available");
+        // require(isAvailableCollateralAsset(_collateralCurrency), "TribeOne: Collateral asset is not available");
 
         require(_loanCurrency != _collateralCurrency, "TribeOne: Wrong assets");
 
@@ -293,8 +300,6 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         uint256 paidAmount = _loan.paidAmount;
         uint256 _totalDebt = totalDebt(_loanId);
         {
-            // tenor, LTV, interest,
-            // uint256 expectedAmount = (_totalDebt * expectedNr) / _loan.loanRules[0];
             uint256 expectedAmount = (_totalDebt * expectedNr) / _loan.loanRules.tenor;
             require(paidAmount + _amount >= expectedAmount, "TribeOne: Insufficient Amount");
             // out of rule, penalty
@@ -365,10 +370,6 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
 
         returnColleteral(_loanId);
         emit NFTWithdrew(_loanId, _sender);
-    }
-
-    function updatePenalty(uint256 _loanId) external nonReentrant {
-        _updatePenalty(_loanId);
     }
 
     function _updatePenalty(uint256 _loanId) private {

@@ -16,6 +16,7 @@ describe('TribeOne', function () {
   before(async function () {
     this.TribeOne = await ethers.getContractFactory('TribeOne');
     this.MultiSigWallet = await ethers.getContractFactory('MultiSigWallet');
+    this.AssetManager = await ethers.getContractFactory('AssetManager');
     this.MockERC20 = await ethers.getContractFactory('MockERC20');
     this.MockERC721 = await ethers.getContractFactory('MockERC721');
     this.MockERC1155 = await ethers.getContractFactory('MockERC1155');
@@ -33,17 +34,25 @@ describe('TribeOne', function () {
   beforeEach(async function () {
     this.feeCurrency = await this.MockERC20.deploy('MockUSDT', 'MockUSDT'); // will be used for late fee
     this.collateralCurrency = await this.MockERC20.deploy('MockUSDC', 'MockUSDC'); // wiil be used for collateral
+
+    this.assetManager = await this.AssetManager.deploy();
+
     this.multiSigWallet = await (
       await this.MultiSigWallet.deploy([this.signers[0].address, this.signers[1].address, this.signers[2].address], 2)
     ).deployed();
+
     this.tribeOne = await (
       await this.TribeOne.deploy(
         this.salesManager.address,
         this.feeTo.address,
         this.feeCurrency.address,
-        this.multiSigWallet.address
+        this.multiSigWallet.address,
+        this.assetManager.address
       )
     ).deployed();
+
+    // addding collateral currency to Asset
+    await this.assetManager.addAvailableCollateralAsset(this.collateralCurrency.address);
 
     // Preparing NFT
     this.erc721NFT = await this.MockERC721.deploy('TribeOne', 'TribeOne');
@@ -280,11 +289,6 @@ describe('TribeOne', function () {
         const after4Tenor = Number(loanStart.toString()) + TENOR_UNIT * 4;
         network.provider.send('evm_setNextBlockTimestamp', [after4Tenor + 3 * 24 * 3600]);
         await network.provider.send('evm_mine');
-        // Testing penalty
-        await this.tribeOne.updatePenalty(this.loanId);
-        createdLoan = await this.tribeOne.loans(this.loanId);
-        nrOfPenalty = createdLoan.nrOfPenalty;
-        expect(nrOfPenalty).equal(1);
 
         for (let ii = 0; ii < 3; ii++) {
           await expect(
