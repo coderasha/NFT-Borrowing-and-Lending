@@ -172,8 +172,8 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         require(nftAddressArray.length > 0, "TribeOne: Loan must have atleast 1 NFT");
         address _collateralCurrency = _currencies[1];
         address _loanCurrency = _currencies[0];
-        // require(isAvailableLoanAsset(_loanCurrency), "TribeOne: Loan asset is not available");
-        // require(isAvailableCollateralAsset(_collateralCurrency), "TribeOne: Collateral asset is not available");
+        require(IAssetManager(assetManager).isAvailableLoanAsset(_loanCurrency), "TribeOne: Loan asset is not available");
+        require(IAssetManager(assetManager).isAvailableCollateralAsset(_collateralCurrency), "TribeOne: Collateral asset is not available");
 
         require(_loanCurrency != _collateralCurrency, "TribeOne: Wrong assets");
 
