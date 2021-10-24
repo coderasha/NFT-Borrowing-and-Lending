@@ -436,7 +436,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
      * @dev after sold NFT set in market place, and give that fund back to TribeOne
      * Only sales manager can do this
      */
-    function postLiquidation(uint256 _loanId, uint256 _amount) external payable nonReentrant {
+    function postLiquidation(uint256 _loanId, uint256 _amount) external payable nonReentrant onlyOwner {
         require(_msgSender() == salesManager, "TribeOne: Forbidden");
         Loan memory _loan = loans[_loanId];
         require(_loan.status == Status.LIQUIDATION, "TribeOne: invalid status");
