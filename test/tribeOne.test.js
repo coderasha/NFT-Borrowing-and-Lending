@@ -306,62 +306,62 @@ describe('TribeOne', function () {
           .withArgs(this.loanId, this.alice.address);
       });
 
-      it('Put NFT in Liquidation and user get back the rest', async function () {
-        // Pay 0.2ETH for one installment
-        const totalDebt = await this.tribeOne.totalDebt(this.loanId);
-        const desiredAmount = totalDebt.div(6);
-        let createdLoan = await this.tribeOne.loans(this.loanId);
-        const loanStart = createdLoan.loanStart;
+      // it('Put NFT in Liquidation and user get back the rest', async function () {
+      //   // Pay 0.2ETH for one installment
+      //   const totalDebt = await this.tribeOne.totalDebt(this.loanId);
+      //   const desiredAmount = totalDebt.div(6);
+      //   let createdLoan = await this.tribeOne.loans(this.loanId);
+      //   const loanStart = createdLoan.loanStart;
 
-        for (let ii = 0; ii < 3; ii++) {
-          await expect(
-            this.tribeOne.connect(this.alice).payInstallment(this.loanId, desiredAmount, { value: desiredAmount })
-          )
-            .to.emit(this.tribeOne, 'InstallmentPaid')
-            .withArgs(this.loanId, this.alice.address, ZERO_ADDRESS, desiredAmount);
-        }
+      //   for (let ii = 0; ii < 3; ii++) {
+      //     await expect(
+      //       this.tribeOne.connect(this.alice).payInstallment(this.loanId, desiredAmount, { value: desiredAmount })
+      //     )
+      //       .to.emit(this.tribeOne, 'InstallmentPaid')
+      //       .withArgs(this.loanId, this.alice.address, ZERO_ADDRESS, desiredAmount);
+      //   }
 
-        await expect(this.tribeOne.setLoanDefaulted(this.loanId)).to.be.revertedWith('TribeOne: Not overdued date yet');
+      //   await expect(this.tribeOne.setLoanDefaulted(this.loanId)).to.be.revertedWith('TribeOne: Not overdued date yet');
 
-        // 4 * 4 weeks and 3 days,  GRACE_PERIOD
-        const after4Tenor = Number(loanStart.toString()) + TENOR_UNIT * 4;
-        network.provider.send('evm_setNextBlockTimestamp', [after4Tenor + 3 * 24 * 3600]);
-        await network.provider.send('evm_mine');
+      //   // 4 * 4 weeks and 3 days,  GRACE_PERIOD
+      //   const after4Tenor = Number(loanStart.toString()) + TENOR_UNIT * 4;
+      //   network.provider.send('evm_setNextBlockTimestamp', [after4Tenor + 3 * 24 * 3600]);
+      //   await network.provider.send('evm_mine');
 
-        await expect(this.tribeOne.setLoanDefaulted(this.loanId))
-          .to.emit(this.tribeOne, 'LoanDefaulted')
-          .withArgs(this.loanId);
+      //   await expect(this.tribeOne.setLoanDefaulted(this.loanId))
+      //     .to.emit(this.tribeOne, 'LoanDefaulted')
+      //     .withArgs(this.loanId);
 
-        await expect(this.tribeOne.setLoanLiquidation(this.loanId)).to.be.revertedWith(
-          'TribeOne: Not overdued date yet'
-        );
+      //   await expect(this.tribeOne.setLoanLiquidation(this.loanId)).to.be.revertedWith(
+      //     'TribeOne: Not overdued date yet'
+      //   );
 
-        // 4 * 4 weeks and 15 days,  GRACE_PERIOD + 1
-        network.provider.send('evm_setNextBlockTimestamp', [after4Tenor + 15 * 24 * 3600]);
-        await network.provider.send('evm_mine');
+      //   // 4 * 4 weeks and 15 days,  GRACE_PERIOD + 1
+      //   network.provider.send('evm_setNextBlockTimestamp', [after4Tenor + 15 * 24 * 3600]);
+      //   await network.provider.send('evm_mine');
 
-        await expect(this.tribeOne.setLoanLiquidation(this.loanId))
-          .to.emit(this.tribeOne, 'LoanLiquidation')
-          .withArgs(this.loanId, this.salesManager.address);
+      //   await expect(this.tribeOne.setLoanLiquidation(this.loanId))
+      //     .to.emit(this.tribeOne, 'LoanLiquidation')
+      //     .withArgs(this.loanId, this.salesManager.address);
 
-        // checking finalt debt
-        const finalDebt = await this.tribeOne.finalDebtAndPenalty(this.loanId);
-        expect(finalDebt).to.equal(desiredAmount.mul(3));
+      //   // checking finalt debt
+      //   const finalDebt = await this.tribeOne.finalDebtAndPenalty(this.loanId);
+      //   expect(finalDebt).to.equal(desiredAmount.mul(3));
 
-        // we sold NFT 2 ETH
-        const soldAmount = getBigNumber(2);
-        await expect(
-          this.tribeOne.connect(this.salesManager).postLiquidation(this.loanId, soldAmount, { value: soldAmount })
-        )
-          .to.emit(this.tribeOne, 'LoanPostLiquidation')
-          .withArgs(this.loanId, soldAmount, finalDebt);
+      //   // we sold NFT 2 ETH
+      //   const soldAmount = getBigNumber(2);
+      //   await expect(
+      //     this.tribeOne.connect(this.salesManager).postLiquidation(this.loanId, soldAmount, { value: soldAmount })
+      //   )
+      //     .to.emit(this.tribeOne, 'LoanPostLiquidation')
+      //     .withArgs(this.loanId, soldAmount, finalDebt);
 
-        // user will get back 2TH - finalDebt;
-        // @note all fee constants are zero
-        await expect(this.tribeOne.connect(this.alice).getBackFund(this.loanId))
-          .to.emit(this.tribeOne, 'RestWithdrew')
-          .withArgs(this.loanId, soldAmount.sub(finalDebt));
-      });
+      //   // user will get back 2TH - finalDebt;
+      //   // @note all fee constants are zero
+      //   await expect(this.tribeOne.connect(this.alice).getBackFund(this.loanId))
+      //     .to.emit(this.tribeOne, 'RestWithdrew')
+      //     .withArgs(this.loanId, soldAmount.sub(finalDebt));
+      // });
     });
   });
 });
