@@ -59,10 +59,13 @@ describe('TribeOne', function () {
     this.erc1155NFT = await this.MockERC1155.connect(this.agent).deploy();
     await this.erc721NFT.batchMintTo(this.agent.address, 10);
 
-    // Transfering 10 ETH to TribeOne
+    // Transfering 10 ETH to AssetManger
     await ethers.provider.send('eth_sendTransaction', [
-      { from: this.signers[0].address, to: this.tribeOne.address, value: getBigNumber(10).toHexString() }
+      { from: this.signers[0].address, to: this.assetManager.address, value: getBigNumber(10).toHexString() }
     ]);
+
+    // Set TribeOne as consumer in AssetManger
+    await this.assetManager.setConsumer(this.tribeOne.address);
 
     // Transfering collateralCurrency (USDC) to users
     await this.collateralCurrency.transfer(this.alice.address, getBigNumber(1000000));

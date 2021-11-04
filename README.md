@@ -22,3 +22,12 @@ Note: We set late fee and final penaly as 0 at the first stage.
 
 ### Deployment
 - Once deploying TribeOne, we transfer ownership to MultiSigWallet
+
+
+### Assets store
+  - User
+    collateral: TribeOne
+    fund amount: TribeOne
+    installment payment: Asset Manager
+  - Admin
+    Asset Manager

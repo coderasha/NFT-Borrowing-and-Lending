@@ -60,7 +60,6 @@ describe('MultiSigWallet', function () {
   it('Trying setSettings function in TribeOne', async function () {
     const owner = await this.tribeOne.owner();
     console.log(`owner ${this.multiSigWallet.address} ${owner}`);
-    console.log(this.feeTo.address);
     // 9fbd4a42  =>  setSettings(address,uint256,uint256,address)
 
     const encodedCallData = this.tribeOne.interface.encodeFunctionData('setSettings', [
