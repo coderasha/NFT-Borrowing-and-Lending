@@ -34,7 +34,7 @@ module.exports = {
   gasReporter: {
     coinmarketcap: process.env.COINMARKETCAP_API_KEY,
     currency: "USD",
-    enabled: true
+    enabled: false
   },
   namedAccounts: {
     deployer: {
@@ -64,7 +64,6 @@ module.exports = {
       tags: ["staging"],
       gasPrice: 5000000000,
       gasMultiplier: 2,
-      timeout: 1000
     },
     bscTest: {
       url: "https://data-seed-prebsc-1-s1.binance.org:8545",
@@ -91,11 +90,11 @@ module.exports = {
     sources: "contracts",
     tests: "test"
   },
-  contractSizer: {
-    alphaSort: true,
-    disambiguatePaths: true,
-    runOnCompile: true
-  },
+  // contractSizer: {
+  //   alphaSort: true,
+  //   disambiguatePaths: true,
+  //   runOnCompile: true
+  // },
   solidity: {
     version: "0.8.0",
     settings: {

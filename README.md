@@ -31,3 +31,10 @@ Note: We set late fee and final penaly as 0 at the first stage.
     installment payment: Asset Manager
   - Admin
     Asset Manager
+
+
+=== Rinkeby testnet deploy ===
+deploying "MultiSigWallet": deployed at 0x75415C1a0fCE7A5E9D0cB3c6f359A9F2E2D812e4 with 1263390 gas
+deploying "AssetManager": deployed at 0x997036a4DC288C7d0C7C570e61dCdb54F0a3d6B2 with 1183551 gas
+reusing "MockERC20" at 0xd8f50554055Be0276fa29F40Fb3227FE96B5D6c2
+deploying "TribeOne": deployed at 0xeaB917ADb2DD2988D4F62637AB1e6010601252dd with 3796318 gas
