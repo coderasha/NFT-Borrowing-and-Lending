@@ -156,6 +156,9 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         emit SettingsUpdate(_feeTo, _lateFee, _penaltyFee, _salesManager, assetManager);
     }
 
+    /**
+     * @dev _fundAmount shoud be amount in loan currency, and _collateralAmount should be in collateral currency
+     */
     function createLoan(
         uint16[] calldata _loanRules, // tenor, LTV, interest, 10000 - 100% to use array - avoid stack too deep
         address[] calldata _currencies, // _loanCurrency, _collateralCurrency, address(0) is native coin
@@ -163,20 +166,20 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         uint256[] calldata _amounts, // _fundAmount, _collateralAmount
         uint256[] calldata nftTokenIdArray,
         TribeOneHelper.TokenType[] memory nftTokenTypeArray
-    ) external payable {
+    ) external {
         require(_loanRules.length == 3 && _amounts.length == 2, "TribeOne: Invalid parameter");
         uint16 tenor = _loanRules[0];
         uint16 LTV = _loanRules[1];
         uint16 interest = _loanRules[2];
         require(_loanRules[1] > 0, "TribeOne: LTV should not be ZERO");
         require(_loanRules[0] > 0, "TribeOne: Loan must have at least 1 installment");
-        require(nftAddressArray.length > 0, "TribeOne: Loan must have atleast 1 NFT");
+        require(nftAddressArray.length > 0, "TribeOne: Loan must have at least 1 NFT");
         address _collateralCurrency = _currencies[1];
         address _loanCurrency = _currencies[0];
         require(IAssetManager(assetManager).isAvailableLoanAsset(_loanCurrency), "TribeOne: Loan asset is not available");
         require(IAssetManager(assetManager).isAvailableCollateralAsset(_collateralCurrency), "TribeOne: Collateral asset is not available");
 
-        require(_loanCurrency != _collateralCurrency, "TribeOne: Wrong assets");
+        require(_collateralCurrency != _loanCurrency && _collateralCurrency != address(0), "TribeOne: Wrong collateral assets");
 
         require(
             nftAddressArray.length == nftTokenIdArray.length && nftTokenIdArray.length == nftTokenTypeArray.length,
@@ -186,17 +189,13 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         loanIds.increment();
         uint256 loanID = loanIds.current();
 
-        // Transfer Collateral and PreFund from sender to contract
-        uint256 _fundAmount = _loanCurrency == address(0) ? msg.value : _amounts[0];
-        uint256 _collateralAmount = _collateralCurrency == address(0) ? msg.value : _amounts[1];
+        // Transfer Collateral from sender to contract
+        uint256 _fundAmount = _amounts[0];
+        uint256 _collateralAmount = _amounts[1];
 
-        if (_loanCurrency != address(0)) {
-            TribeOneHelper.safeTransferFrom(_loanCurrency, _msgSender(), address(this), _fundAmount);
-        }
-        if (_collateralCurrency != address(0)) {
-            TribeOneHelper.safeTransferFrom(_collateralCurrency, _msgSender(), address(this), _collateralAmount);
-        }
-
+        // Transfer collateral to TribeOne
+        TribeOneHelper.safeTransferFrom(_collateralCurrency, _msgSender(), address(this), _collateralAmount);
+        
         loans[loanID].nftAddressArray = nftAddressArray;
         loans[loanID].borrower = _msgSender();
         loans[loanID].loanAsset = Asset({currency: _loanCurrency, amount: 0});
@@ -266,6 +265,10 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
 
             _loan.status = Status.LOANACTIVED;
             _loan.loanStart = block.timestamp;
+            // user can not get back collateral in this case, we transfer collateral to AssetManager
+            address _currency = _loan.collateralAsset.currency;
+            uint256 _amount = _loan.collateralAsset.amount;
+            TribeOneHelper.safeTransferAsset(_currency, assetManager, _amount);
         } else {
             _loan.status = Status.FAILED;
             // refund loan
@@ -283,7 +286,6 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
             }
 
             returnColleteral(_loanId);
-            returnFund(_loanId);
         }
 
         emit NFTRelayed(_loanId, _agent, _accepted);
@@ -360,7 +362,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         require(_sender == _loan.borrower, "TribeOne: Forbidden");
         _loan.status = Status.WITHDRAWN;
 
-        if (_loan.nrOfPenalty > 0) {
+        if (_loan.nrOfPenalty > 0 && lateFee > 0) {
             uint256 _totalLateFee = _loan.nrOfPenalty * lateFee * (10**IERC20Metadata(feeCurrency).decimals());
             TribeOneHelper.safeTransferFrom(feeCurrency, _sender, address(feeTo), _totalLateFee);
         }
@@ -372,7 +374,6 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
             TribeOneHelper.safeTransferNFT(_nftAddress, address(this), _sender, _loan.nftTokenTypeArray[ii], _tokenId);
         }
 
-        returnColleteral(_loanId);
         emit NFTWithdrew(_loanId, _sender);
     }
 
@@ -431,10 +432,6 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
             uint256 _tokenId = _loan.nftTokenIdArray[ii];
             TribeOneHelper.safeTransferNFT(_nftAddress, address(this), salesManager, _loan.nftTokenTypeArray[ii], _tokenId);
         }
-        // user can not get back collateral in this case
-        address _currency = _loan.collateralAsset.currency;
-        uint256 _amount = _loan.collateralAsset.amount;
-        TribeOneHelper.safeTransferAsset(_currency, feeTo, _amount);
 
         emit LoanLiquidation(_loanId, salesManager);
     }
@@ -487,9 +484,13 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         require(_loan.postTime + GRACE_PERIOD > block.timestamp, "TribeOne: Time over");
         uint256 _restAmount = _loan.restAmount;
         require(_restAmount > 0, "TribeOne: No amount to give back");
-        uint256 _amount = lateFee * (10**IERC20Metadata(feeCurrency).decimals()); // tenor late fee
+
+        if (lateFee > 0) {
+            uint256 _amount = lateFee * (10**IERC20Metadata(feeCurrency).decimals()); // tenor late fee
+            TribeOneHelper.safeTransferFrom(feeCurrency, _msgSender(), address(this), _amount);
+        }
+
         _loan.status = Status.RESTWITHDRAWN;
-        TribeOneHelper.safeTransferFrom(feeCurrency, _msgSender(), address(this), _amount);
 
         address _currency = _loan.loanAsset.currency;
 
@@ -532,7 +533,6 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         require(_loan.borrower == _msgSender() && _loan.status == Status.LISTED, "TribeOne: Forbidden");
         _loan.status = Status.CANCELLED;
         returnColleteral(_loanId);
-        returnFund(_loanId);
         emit LoanCanceled(_loanId, _msgSender());
     }
 
@@ -543,14 +543,6 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         Loan storage _loan = loans[_loanId];
         address _currency = _loan.collateralAsset.currency;
         uint256 _amount = _loan.collateralAsset.amount;
-        address _to = _loan.borrower;
-        TribeOneHelper.safeTransferAsset(_currency, _to, _amount);
-    }
-
-    function returnFund(uint256 _loanId) private {
-        Loan storage _loan = loans[_loanId];
-        address _currency = _loan.loanAsset.currency;
-        uint256 _amount = _loan.fundAmount;
         address _to = _loan.borrower;
         TribeOneHelper.safeTransferAsset(_currency, _to, _amount);
     }

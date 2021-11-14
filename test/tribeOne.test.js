@@ -91,8 +91,7 @@ describe('TribeOne', function () {
       this.tribeOne
         .connect(this.alice)
         .createLoan(_loanRules, _currencies, nftAddressArray, _amounts, nftTokenIdArray, nftTokenTypeArray, {
-          from: this.alice.address,
-          value: getBigNumber(1)
+          from: this.alice.address
         })
     )
       .to.emit(this.tribeOne, 'LoanCreated')
@@ -130,8 +129,7 @@ describe('TribeOne', function () {
         this.tribeOne
           .connect(this.alice)
           .createLoan(_loanRules, _currencies, nftAddressArray, _amounts, nftTokenIdArray, nftTokenTypeArray, {
-            from: this.alice.address,
-            value: getBigNumber(1)
+            from: this.alice.address
           })
       )
         .to.emit(this.tribeOne, 'LoanCreated')

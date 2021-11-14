@@ -34,10 +34,10 @@ Note: We set late fee and final penaly as 0 at the first stage.
 
 
 === Rinkeby testnet deploy ===
-deploying "MultiSigWallet": deployed at 0x75415C1a0fCE7A5E9D0cB3c6f359A9F2E2D812e4 with 1263390 gas
-deploying "AssetManager": deployed at 0x997036a4DC288C7d0C7C570e61dCdb54F0a3d6B2 with 1183551 gas
-reusing "MockERC20" at 0xd8f50554055Be0276fa29F40Fb3227FE96B5D6c2
-deploying "TribeOne": deployed at 0xeaB917ADb2DD2988D4F62637AB1e6010601252dd with 3796318 gas
+"MultiSigWallet": deployed at 0x75415C1a0fCE7A5E9D0cB3c6f359A9F2E2D812e4 with 1263390 gas
+"AssetManager": deployed at 0x997036a4DC288C7d0C7C570e61dCdb54F0a3d6B2 with 1183551 gas
+HAKA at 0xd8f50554055Be0276fa29F40Fb3227FE96B5D6c2
+"TribeOne": deployed at 0x328232C816Da5a2bb3CbF92F13AB133955D92CE8 
 
 ### Our TODO list
 - TribeOne.sol / approveLoan() function Line 236.
@@ -47,3 +47,6 @@ deploying "TribeOne": deployed at 0xeaB917ADb2DD2988D4F62637AB1e6010601252dd wit
 
 - Line 183
   require(_loanCurrency != _collateralCurrency, "TribeOne: Wrong assets");
+
+- Which is better?
+  Transferring collateral tokens when user creating loan or, when MultiSigWallet approving loan?
