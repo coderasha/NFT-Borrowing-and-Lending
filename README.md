@@ -38,3 +38,12 @@ deploying "MultiSigWallet": deployed at 0x75415C1a0fCE7A5E9D0cB3c6f359A9F2E2D812
 deploying "AssetManager": deployed at 0x997036a4DC288C7d0C7C570e61dCdb54F0a3d6B2 with 1183551 gas
 reusing "MockERC20" at 0xd8f50554055Be0276fa29F40Fb3227FE96B5D6c2
 deploying "TribeOne": deployed at 0xeaB917ADb2DD2988D4F62637AB1e6010601252dd with 3796318 gas
+
+### Our TODO list
+- TribeOne.sol / approveLoan() function Line 236.
+  We should consider the edge case when _loan.fundAmount > _amount. It can be happened when there's a big fluctuation in Crypto or NFT marketplace
+
+- How to manage signers of MultiSigWallet
+
+- Line 183
+  require(_loanCurrency != _collateralCurrency, "TribeOne: Wrong assets");

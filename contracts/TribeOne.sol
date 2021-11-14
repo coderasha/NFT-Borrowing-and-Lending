@@ -64,12 +64,8 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
     Counters.Counter public loanIds; // loanId is from No.1
     // uint public loanLength;
     uint256 public constant MAX_SLIPPAGE = 500; // 5%
-    // uint256 public constant TENOR_UNIT = 4 weeks; // installment should be pay at least in every 4 weeks
-    // uint256 public constant GRACE_PERIOD = 14 days; // 2 weeks
-
-    /* TODO should be changed when deploying on mainnnet */
-    uint256 public constant TENOR_UNIT = 2 days; // installment should be pay at least in every 4 weeks
-    uint256 public constant GRACE_PERIOD = 1 days; // 2 weeks
+    uint256 public constant TENOR_UNIT = 4 weeks; // installment should be pay at least in every 4 weeks
+    uint256 public constant GRACE_PERIOD = 14 days; // 2 weeks
 
     address public salesManager;
     address public assetManager;
