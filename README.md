@@ -51,7 +51,8 @@ Note: We set late fee and final penaly as 0 at the first stage.
 
 - Which is better?
   Transferring collateral tokens when user creating loan or, when MultiSigWallet approving loan?
-  creatingLoan() as original. Skip it.
 
 - MultiSigWallet
   getTransaction() function needs modifier for more stable calling   -- done
+
+- EIP1967 pattern implementation
