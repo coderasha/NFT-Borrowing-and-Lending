@@ -34,10 +34,11 @@ Note: We set late fee and final penaly as 0 at the first stage.
 
 
 === Rinkeby testnet deploy ===
-"MultiSigWallet": deployed at 0x75415C1a0fCE7A5E9D0cB3c6f359A9F2E2D812e4 with 1263390 gas
-"AssetManager": deployed at 0x997036a4DC288C7d0C7C570e61dCdb54F0a3d6B2 with 1183551 gas
-HAKA at 0xd8f50554055Be0276fa29F40Fb3227FE96B5D6c2
-"TribeOne": deployed at 0x328232C816Da5a2bb3CbF92F13AB133955D92CE8 
+  - MultiSigWallet: 0x153A2FC88aC5EDDBC915A0c3d3c1B86ce8F84842
+  - AssetManager: 0x997036a4DC288C7d0C7C570e61dCdb54F0a3d6B2
+  - HAKA: 0xd8f50554055Be0276fa29F40Fb3227FE96B5D6c2
+  - TribeOne: 0x12335BFD2cCC425e1794b8F53a1d505611d1E2D7
+  - AirdropTribeOne: 0x6F971B269B0e3b814529B802F080a27f13721E67
 
 ### Our TODO list
 - TribeOne.sol / approveLoan() function Line 236.
@@ -46,7 +47,11 @@ HAKA at 0xd8f50554055Be0276fa29F40Fb3227FE96B5D6c2
 - How to manage signers of MultiSigWallet
 
 - Line 183
-  require(_loanCurrency != _collateralCurrency, "TribeOne: Wrong assets");
+  require(_loanCurrency != _collateralCurrency, "TribeOne: Wrong assets"; - it's Okay, Skip it.
 
 - Which is better?
   Transferring collateral tokens when user creating loan or, when MultiSigWallet approving loan?
+  creatingLoan() as original. Skip it.
+
+- MultiSigWallet
+  getTransaction() function needs modifier for more stable calling   -- done

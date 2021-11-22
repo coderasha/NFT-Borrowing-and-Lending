@@ -151,6 +151,7 @@ contract MultiSigWallet is ReentrancyGuard {
     function getTransaction(uint256 _txIndex)
         public
         view
+        txExists(_txIndex)
         returns (
             address to,
             uint256 value,
