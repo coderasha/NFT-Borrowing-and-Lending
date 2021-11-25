@@ -58,10 +58,7 @@ describe('MultiSigWallet', function () {
   });
 
   it('Trying setSettings function in TribeOne', async function () {
-    const owner = await this.tribeOne.owner();
-    console.log(`owner ${this.multiSigWallet.address} ${owner}`);
     // 9fbd4a42  =>  setSettings(address,uint256,uint256,address)
-
     const encodedCallData = this.tribeOne.interface.encodeFunctionData('setSettings', [
       this.signers[0].address,
       10,
@@ -70,28 +67,21 @@ describe('MultiSigWallet', function () {
       this.signers[1].address
     ]);
 
-    const txIdx = 0;
-    await expect(this.multiSigWallet.submitTransaction(this.tribeOne.address, 0, encodedCallData))
-      .to.emit(this.multiSigWallet, 'SubmitTransaction')
-      .withArgs(this.signers[0].address, txIdx, this.tribeOne.address, 0, encodedCallData);
+    const value = 0;
+    const paddedValue = ethers.utils.hexZeroPad(ethers.utils.hexlify(value), 32);
+    const hexCallData = this.tribeOne.address + paddedValue.slice(2) + encodedCallData.slice(2);
 
-    await expect(this.multiSigWallet.confirmTransaction(txIdx, false))
-      .to.emit(this.multiSigWallet, 'ConfirmTransaction')
-      .withArgs(this.signers[0].address, txIdx);
+    const flatSig0 = await this.signers[0].signMessage(ethers.utils.arrayify(ethers.utils.keccak256(hexCallData)));
+    const flatSig1 = await this.signers[1].signMessage(ethers.utils.arrayify(ethers.utils.keccak256(hexCallData)));
 
-    await expect(this.multiSigWallet.executeTransaction(txIdx)).to.be.revertedWith('cannot execute tx');
+    const splitSig0 = ethers.utils.splitSignature(flatSig0);
+    const splitSig1 = ethers.utils.splitSignature(flatSig1);
 
-    await expect(this.multiSigWallet.confirmTransaction(txIdx, false)).to.be.revertedWith('tx already confirmed');
+    const rs = [splitSig0.r, splitSig1.r];
+    const ss = [splitSig0.s, splitSig1.s];
+    const vs = [splitSig0.v, splitSig1.v];
 
-    await expect(this.multiSigWallet.connect(this.signers[1]).confirmTransaction(txIdx, false))
-      .to.emit(this.multiSigWallet, 'ConfirmTransaction')
-      .withArgs(this.signers[1].address, txIdx);
-
-    // await expect(this.multiSigWallet.connect(this.signers[1]).executeTransaction(txIdx))
-    //   .to.emit(this.multiSigWallet, 'ExecuteTransaction')
-    //   .withArgs(this.signers[1].address, txIdx);
-
-    await expect(this.multiSigWallet.connect(this.signers[1]).executeTransaction(txIdx))
+    await expect(this.multiSigWallet.submitTransaction(this.tribeOne.address, 0, encodedCallData, rs, ss, vs))
       .to.emit(this.tribeOne, 'SettingsUpdate')
       .withArgs(
         this.signers[0].address,
@@ -100,16 +90,13 @@ describe('MultiSigWallet', function () {
         this.signers[1].address,
         this.signers[1].address
       );
-
-    await expect(this.multiSigWallet.executeTransaction(txIdx)).to.be.revertedWith('tx already executed');
   });
 
   it('Trying nonPayable function call with MultiWalletTest.sol', async function () {
-    const encodedNonPayableCallData = this.multiWalletTest.interface.encodeFunctionData('nonPayableFunction', [
-      this.signers[0].address
-    ]);
-
-    await this.multiSigWallet.submitTransaction(this.multiWalletTest.address, 0, encodedNonPayableCallData);
+    // const encodedNonPayableCallData = this.multiWalletTest.interface.encodeFunctionData('nonPayableFunction', [
+    //   this.signers[0].address
+    // ]);
+    // await this.multiSigWallet.submitTransaction(this.multiWalletTest.address, 0, encodedNonPayableCallData);
   });
 
   it('Trying payable function call with MultiWalletTest.sol', async function () {

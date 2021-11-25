@@ -40,6 +40,8 @@ Note: We set late fee and final penaly as 0 at the first stage.
   - TribeOne: 0x12335BFD2cCC425e1794b8F53a1d505611d1E2D7
   - AirdropTribeOne: 0x6F971B269B0e3b814529B802F080a27f13721E67
 
+  - new MultiSigWallet 0xca1b4caF38c4449af2183745A00cC3793C2D344c
+
 ### Our TODO list
 - TribeOne.sol / approveLoan() function Line 236.
   We should consider the edge case when _loan.fundAmount > _amount. It can be happened when there's a big fluctuation in Crypto or NFT marketplace
