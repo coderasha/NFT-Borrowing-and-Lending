@@ -6,7 +6,11 @@ interface IAssetManager {
 
     function isAvailableCollateralAsset(address _asset) external returns (bool);
 
-    function requestETH(address _to, uint _amount) external;
+    function requestETH(address _to, uint256 _amount) external;
 
-    function requestToken(address _to, address _token, uint _amount) external;
+    function requestToken(
+        address _to,
+        address _token,
+        uint256 _amount
+    ) external;
 }

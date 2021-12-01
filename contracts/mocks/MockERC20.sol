@@ -14,7 +14,7 @@ contract MockERC20 is Ownable, ERC20 {
         _mint(msg.sender, INITIAL_SUPPLY);
     }
 
-    function faucet(uint _amount) external {
+    function faucet(uint256 _amount) external {
         require(_amount <= faucetLimit, "Faucet limit error");
         _mint(msg.sender, _amount);
     }
