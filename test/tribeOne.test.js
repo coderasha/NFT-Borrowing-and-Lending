@@ -34,7 +34,6 @@ describe('TribeOne', function () {
   beforeEach(async function () {
     this.feeCurrency = await this.MockERC20.deploy('MockUSDT', 'MockUSDT'); // will be used for late fee
     this.collateralCurrency = await this.MockERC20.deploy('MockUSDC', 'MockUSDC'); // wiil be used for collateral
-    this.loanCurrency = this.collateralCurrency; // will be used for loan
 
     this.assetManager = await this.AssetManager.deploy();
 
@@ -55,9 +54,6 @@ describe('TribeOne', function () {
     // adding collateral currency to Asset
     await this.assetManager.addAvailableCollateralAsset(this.collateralCurrency.address);
 
-    // adding loan currency to Asset
-    await this.assetManager.addAvailableLoanAsset(this.loanCurrency.address);
-
     // Preparing NFT
     this.erc721NFT = await this.MockERC721.deploy('TribeOne', 'TribeOne');
     this.erc1155NFT = await this.MockERC1155.connect(this.agent).deploy();
@@ -67,20 +63,14 @@ describe('TribeOne', function () {
     await ethers.provider.send('eth_sendTransaction', [
       { from: this.signers[0].address, to: this.assetManager.address, value: getBigNumber(10).toHexString() }
     ]);
-    // Transfering 10000000 loanCurrency (USDC) to AssetManger
-    await this.loanCurrency.transfer(this.assetManager.address, getBigNumber(10000000));
 
     // Set TribeOne as consumer in AssetManger
     await this.assetManager.setConsumer(this.tribeOne.address);
 
-    // Transfering collateralCurrency/loanCurrency (USDC) to users
+    // Transfering collateralCurrency (USDC) to users
     await this.collateralCurrency.transfer(this.alice.address, getBigNumber(1000000));
     await this.collateralCurrency.transfer(this.bob.address, getBigNumber(1000000));
     await this.collateralCurrency.transfer(this.todd.address, getBigNumber(1000000));
-    await this.loanCurrency.transfer(this.alice.address, getBigNumber(1000000));
-    await this.loanCurrency.transfer(this.bob.address, getBigNumber(1000000));
-    await this.loanCurrency.transfer(this.todd.address, getBigNumber(1000000));
-    await this.loanCurrency.transfer(this.salesManager.address, getBigNumber(1000000));
     await this.feeCurrency.transfer(this.alice.address, getBigNumber(1000000));
     await this.feeCurrency.transfer(this.bob.address, getBigNumber(1000000));
     await this.feeCurrency.transfer(this.todd.address, getBigNumber(1000000));
@@ -393,6 +383,23 @@ describe('TribeOne', function () {
   });
 
   describe('Same Collateral & Loan currencies', function () {
+    beforeEach(async function () {
+      // will be used for loan
+      this.loanCurrency = this.collateralCurrency;
+
+      // adding loan currency to Asset
+      await this.assetManager.addAvailableLoanAsset(this.loanCurrency.address);
+
+      // Transfering 10000000 loanCurrency (USDC) to AssetManger
+      await this.loanCurrency.transfer(this.assetManager.address, getBigNumber(10000000));
+
+      // Transfering loanCurrency (USDC) to users
+      await this.loanCurrency.transfer(this.alice.address, getBigNumber(1000000));
+      await this.loanCurrency.transfer(this.bob.address, getBigNumber(1000000));
+      await this.loanCurrency.transfer(this.todd.address, getBigNumber(1000000));
+      await this.loanCurrency.transfer(this.salesManager.address, getBigNumber(1000000));
+    });
+
     it('Should create and approve loan', async function () {
       const _loanRules = [6, 2500, 300];
       const _currencies = [this.loanCurrency.address, this.collateralCurrency.address];
