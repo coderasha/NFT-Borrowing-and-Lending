@@ -85,7 +85,7 @@ contract AssetManager is Ownable, ReentrancyGuard, IAssetManager {
 
     function requestToken(address _to, address _token, uint _amount) external override onlyConsumer {
         require(IERC20(_token).balanceOf(address(this)) >= _amount, "Asset Manager: Insufficient balance");
-        TribeOneHelper.safeTransferFrom(_token, address(this), _to, _amount);
+        TribeOneHelper.safeTransfer(_token, _to, _amount);
         emit TransferAsset(msg.sender, _to, _token, _amount);
     }
 
