@@ -199,7 +199,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
             "TribeOne: Collateral asset is not available"
         );
 
-        require(_collateralCurrency != _loanCurrency && _collateralCurrency != address(0), "TribeOne: Wrong collateral assets");
+        require(_collateralCurrency != address(0), "TribeOne: Wrong collateral assets");
 
         require(
             nftAddressArray.length == nftTokenIdArray.length && nftTokenIdArray.length == nftTokenTypeArray.length,
@@ -517,7 +517,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         if (_currency == address(0)) {
             TribeOneHelper.safeTransferETH(_msgSender(), _restAmount);
         } else {
-            TribeOneHelper.safeTransferFrom(_currency, address(this), _msgSender(), _restAmount);
+            TribeOneHelper.safeTransfer(_currency, _msgSender(), _restAmount);
         }
 
         emit RestWithdrew(_loanId, _restAmount);
