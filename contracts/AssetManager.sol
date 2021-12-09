@@ -28,7 +28,7 @@ contract AssetManager is Ownable, ReentrancyGuard, IAssetManager {
 
     receive() external payable {}
 
-    modifier onlyConsumer {
+    modifier onlyConsumer() {
         require(msg.sender == _consumer, "Not consumer");
         _;
     }
@@ -77,19 +77,27 @@ contract AssetManager is Ownable, ReentrancyGuard, IAssetManager {
         emit SetConsumer(msg.sender, _consumer_);
     }
 
-    function requestETH(address _to, uint _amount) external override onlyConsumer {
+    function requestETH(address _to, uint256 _amount) external override onlyConsumer {
         require(address(this).balance >= _amount, "Asset Manager: Insufficient balance");
         TribeOneHelper.safeTransferETH(_to, _amount);
         emit TransferAsset(msg.sender, _to, address(0), _amount);
     }
 
-    function requestToken(address _to, address _token, uint _amount) external override onlyConsumer {
+    function requestToken(
+        address _to,
+        address _token,
+        uint256 _amount
+    ) external override onlyConsumer {
         require(IERC20(_token).balanceOf(address(this)) >= _amount, "Asset Manager: Insufficient balance");
         TribeOneHelper.safeTransfer(_token, _to, _amount);
         emit TransferAsset(msg.sender, _to, _token, _amount);
     }
 
-    function withdrawAsset(address _to, address _token, uint _amount) external onlyOwner {
+    function withdrawAsset(
+        address _to,
+        address _token,
+        uint256 _amount
+    ) external onlyOwner {
         require(_to != address(0), "ZERO Address");
         if (_token == address(0)) {
             _amount = address(this).balance;

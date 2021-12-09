@@ -12,15 +12,15 @@ module.exports = async function ({ ethers, getNamedAccounts, deployments, getCha
     from: deployer,
     log: true,
     args: [
-      "0x6C641CE6A7216F12d28692f9d8b2BDcdE812eD2b", // sales manager
-      "0x6C641CE6A7216F12d28692f9d8b2BDcdE812eD2b", // feeTo
-      this.mockHaka.address,                        // fee currency 
-      this.multiSigWallet.address,                  // MultiSigWallet
-      this.assetManager.address                     // AssetManager
+      '0x6C641CE6A7216F12d28692f9d8b2BDcdE812eD2b', // sales manager
+      '0x6C641CE6A7216F12d28692f9d8b2BDcdE812eD2b', // feeTo
+      this.mockHaka.address, // fee currency
+      this.multiSigWallet.address, // MultiSigWallet
+      this.assetManager.address // AssetManager
     ],
-    deterministicDeployment: false,
-  })
-}
+    deterministicDeployment: false
+  });
+};
 
-module.exports.tags = ["TribeOne", "TribeOne"];
+module.exports.tags = ['TribeOne', 'TribeOne'];
 module.exports.dependencies = ['MockERC20', 'MultiSigWallet', 'AssetManger'];

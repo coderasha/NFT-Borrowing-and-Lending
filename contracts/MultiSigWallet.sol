@@ -3,48 +3,33 @@
 pragma solidity 0.8.0;
 
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
 
 contract MultiSigWallet is ReentrancyGuard {
+    using Counters for Counters.Counter;
     event Deposit(address indexed sender, uint256 amount, uint256 balance);
     event SubmitTransaction(address indexed signer, uint256 indexed txIndex, address indexed to, uint256 value, bytes data);
-    event ConfirmTransaction(address indexed signer, uint256 indexed txIndex);
-    event RevokeConfirmation(address indexed signer, uint256 indexed txIndex);
-    event ExecuteTransaction(address indexed signer, uint256 indexed txIndex);
 
     address[] public signers;
     mapping(address => bool) public isSigner;
     uint256 public numConfirmationsRequired;
 
-    struct Transaction {
-        address to;
-        uint256 value;
-        bytes data;
-        bool executed;
-        uint256 numConfirmations;
-    }
+    // struct Transaction {
+    //     address to;
+    //     uint256 value;
+    //     bytes data;
+    //     bool executed;
+    //     uint256 numConfirmations;
+    // }
 
     // mapping from tx index => signer => bool
     mapping(uint256 => mapping(address => bool)) public isConfirmed;
+    Counters.Counter public txIds; // loanId is from No.1
 
-    Transaction[] private transactions;
+    // Transaction[] private transactions;
 
     modifier onlySigner() {
         require(isSigner[msg.sender], "not signer");
-        _;
-    }
-
-    modifier txExists(uint256 _txIndex) {
-        require(_txIndex < transactions.length, "tx does not exist");
-        _;
-    }
-
-    modifier notExecuted(uint256 _txIndex) {
-        require(!transactions[_txIndex].executed, "tx already executed");
-        _;
-    }
-
-    modifier notConfirmed(uint256 _txIndex) {
-        require(!isConfirmed[_txIndex][msg.sender], "tx already confirmed");
         _;
     }
 
@@ -72,72 +57,46 @@ contract MultiSigWallet is ReentrancyGuard {
         emit Deposit(msg.sender, msg.value, address(this).balance);
     }
 
-    /**
-     * @dev when buying is failed, agent should send loan again to TribeOne.
-     */
     function submitTransaction(
         address _to,
         uint256 _value,
-        bytes memory _data
-    ) public payable onlySigner nonReentrant {
+        bytes memory _data,
+        bytes32[] memory rs,
+        bytes32[] memory ss,
+        uint8[] memory vs
+    ) external payable onlySigner nonReentrant {
+        require(rs.length == ss.length && ss.length == vs.length, "Signaure lengths should be same");
+        uint256 sigLength = rs.length;
+        require(sigLength >= numConfirmationsRequired, "Less than needed required confirmations");
         if (_value > 0) {
             require(msg.value == _value, "Should send value");
         }
-        uint256 txIndex = transactions.length;
-
-        transactions.push(Transaction({to: _to, value: _value, data: _data, executed: false, numConfirmations: 0}));
-
-        emit SubmitTransaction(msg.sender, txIndex, _to, _value, _data);
-    }
-
-    function confirmTransaction(uint256 _txIndex, bool _execute)
-        public
-        onlySigner
-        txExists(_txIndex)
-        notExecuted(_txIndex)
-        notConfirmed(_txIndex)
-    {
-        Transaction storage transaction = transactions[_txIndex];
-        isConfirmed[_txIndex][msg.sender] = true;
-        transaction.numConfirmations += 1;
-
-        emit ConfirmTransaction(msg.sender, _txIndex);
-
-        if (transaction.numConfirmations >= numConfirmationsRequired && _execute) {
-            _executeTransaction(_txIndex);
+        uint256 ii;
+        uint256 txIdx = txIds.current();
+        for (ii = 0; ii < sigLength; ii++) {
+            address _signer = _getSigner(_to, _value, _data, rs[ii], ss[ii], vs[ii]);
+            require(isSigner[_signer] && !isConfirmed[txIdx][_signer], "Not signer or duplicated signer for this transaction");
+            isConfirmed[txIdx][_signer] = true;
         }
-    }
-
-    /**
-     * @dev We did not add onlySigner modifier here, because we want to allow any community member to execute transaction
-     * which had got at least minimum number of confirmations
-     */
-    function executeTransaction(uint256 _txIndex) external {
-        _executeTransaction(_txIndex);
-    }
-
-    function _executeTransaction(uint256 _txIndex) private txExists(_txIndex) notExecuted(_txIndex) {
-        Transaction storage transaction = transactions[_txIndex];
-
-        require(transaction.numConfirmations >= numConfirmationsRequired, "cannot execute tx");
-
-        transaction.executed = true;
-
-        (bool success, ) = transaction.to.call{value: transaction.value}(transaction.data);
+        (bool success, ) = _to.call{value: _value}(_data);
         require(success, "tx failed");
 
-        emit ExecuteTransaction(msg.sender, _txIndex);
+        txIds.increment();
+        emit SubmitTransaction(msg.sender, txIdx, _to, _value, _data);
     }
 
-    function revokeConfirmation(uint256 _txIndex) public onlySigner txExists(_txIndex) notExecuted(_txIndex) {
-        Transaction storage transaction = transactions[_txIndex];
-
-        require(isConfirmed[_txIndex][msg.sender], "tx not confirmed");
-
-        transaction.numConfirmations -= 1;
-        isConfirmed[_txIndex][msg.sender] = false;
-
-        emit RevokeConfirmation(msg.sender, _txIndex);
+    function _getSigner(
+        address _to,
+        uint256 _value,
+        bytes memory _data,
+        bytes32 r,
+        bytes32 s,
+        uint8 v
+    ) private pure returns (address) {
+        bytes32 msgHash = keccak256(abi.encodePacked(_to, _value, _data));
+        bytes32 digest = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", msgHash));
+        address recoveredAddress = ecrecover(digest, v, r, s);
+        return recoveredAddress;
     }
 
     function getSigners() public view returns (address[] memory) {
@@ -145,23 +104,6 @@ contract MultiSigWallet is ReentrancyGuard {
     }
 
     function getTransactionCount() public view returns (uint256) {
-        return transactions.length;
-    }
-
-    function getTransaction(uint256 _txIndex)
-        public
-        view
-        txExists(_txIndex)
-        returns (
-            address to,
-            uint256 value,
-            bytes memory data,
-            bool executed,
-            uint256 numConfirmations
-        )
-    {
-        Transaction storage transaction = transactions[_txIndex];
-
-        return (transaction.to, transaction.value, transaction.data, transaction.executed, transaction.numConfirmations);
+        return txIds.current();
     }
 }

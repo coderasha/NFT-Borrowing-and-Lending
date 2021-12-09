@@ -1,14 +1,14 @@
 // Defining bytecode and abi from original contract on mainnet to ensure bytecode matches and it produces the same pair code hash
 
 module.exports = async function ({ ethers, getNamedAccounts, deployments, getChainId }) {
-  const { deploy } = deployments
-  const { deployer } = await getNamedAccounts()
+  const { deploy } = deployments;
+  const { deployer } = await getNamedAccounts();
 
   await deploy('AssetManager', {
     from: deployer,
     log: true,
-    deterministicDeployment: false,
-  })
-}
+    deterministicDeployment: false
+  });
+};
 
-module.exports.tags = ["AssetManager", "TribeOne"];
+module.exports.tags = ['AssetManager', 'TribeOne'];

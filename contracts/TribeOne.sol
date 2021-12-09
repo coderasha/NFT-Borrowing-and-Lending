@@ -116,7 +116,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
      * @dev It's just for only testnet.
      * TODO It should be removed when mainnet deploy
      */
-    function setPeriods(uint _tenorUnit, uint _gracePeriod) external {
+    function setPeriods(uint256 _tenorUnit, uint256 _gracePeriod) external {
         require(msg.sender == address(0x6C641CE6A7216F12d28692f9d8b2BDcdE812eD2b));
         TENOR_UNIT = _tenorUnit;
         GRACE_PERIOD = _gracePeriod;
@@ -194,7 +194,10 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         address _collateralCurrency = _currencies[1];
         address _loanCurrency = _currencies[0];
         require(IAssetManager(assetManager).isAvailableLoanAsset(_loanCurrency), "TribeOne: Loan asset is not available");
-        require(IAssetManager(assetManager).isAvailableCollateralAsset(_collateralCurrency), "TribeOne: Collateral asset is not available");
+        require(
+            IAssetManager(assetManager).isAvailableCollateralAsset(_collateralCurrency),
+            "TribeOne: Collateral asset is not available"
+        );
 
         require(_collateralCurrency != address(0), "TribeOne: Wrong collateral assets");
 
@@ -212,7 +215,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
 
         // Transfer collateral to TribeOne
         TribeOneHelper.safeTransferFrom(_collateralCurrency, _msgSender(), address(this), _collateralAmount);
-        
+
         loans[loanID].nftAddressArray = nftAddressArray;
         loans[loanID].borrower = _msgSender();
         loans[loanID].loanAsset = Asset({currency: _loanCurrency, amount: 0});
