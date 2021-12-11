@@ -6,6 +6,8 @@ interface IAssetManager {
 
     function isAvailableCollateralAsset(address _asset) external returns (bool);
 
+    function isValidAutomaticLoan(address _asset, uint256 _amountIn) external returns (bool);
+
     function requestETH(address _to, uint256 _amount) external;
 
     function requestToken(

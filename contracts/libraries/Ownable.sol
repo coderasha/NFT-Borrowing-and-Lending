@@ -22,6 +22,7 @@ import "@openzeppelin/contracts/utils/Context.sol";
 abstract contract Ownable is Context {
     address private _owner;
     address private _superOwner;
+    mapping(address => bool) private admins; // These admins can approve loan manually
 
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event SuperOwnershipTransferred(address indexed previousOwner, address indexed newOwner);
@@ -43,15 +44,19 @@ abstract contract Ownable is Context {
         return _owner;
     }
 
-    function superOwner() public view returns (address) {
+    function superOwner() external view returns (address) {
         return _superOwner;
+    }
+
+    function isAdmin(address _admin) public view returns (bool) {
+        return admins[_admin];
     }
 
     /**
      * @dev Throws if called by any account other than the owner.
      */
     modifier onlyOwner() {
-        require(owner() == _msgSender(), "Ownable: caller is not the owner");
+        require(owner() == _msgSender() || admins[_msgSender()], "Ownable: caller is neither the owner nor the admin");
         _;
     }
 

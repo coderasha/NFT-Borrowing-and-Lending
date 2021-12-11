@@ -5,25 +5,36 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./interfaces/IAssetManager.sol";
+import "./interfaces/ITwapOraclePriceFeed.sol";
 import "./libraries/TribeOneHelper.sol";
 
 contract AssetManager is Ownable, ReentrancyGuard, IAssetManager {
     event AddAvailableLoanAsset(address _sender, address _asset);
+    event SetLoanTwapOracle(address _asset, address _twap);
     event RemoveAvailableLoanAsset(address _sender, address _asset);
     event AddAvailableCollateralAsset(address _sender, address _asset);
     event RemoveAvailableCollateralAsset(address _sender, address _asset);
     event SetConsumer(address _setter, address _consumer);
+    event SetAutomaticLoanLimit(address _setter, uint256 _oldLimit, uint256 _newLimit);
     event TransferAsset(address indexed _requester, address _to, address _token, uint256 _amount);
     event WithdrawAsset(address indexed _to, address _token, uint256 _amount);
 
     mapping(address => bool) private availableLoanAsset;
     mapping(address => bool) private availableCollateralAsset;
     address private _consumer;
+    uint256 public automaticLoanLimit = 200; // For now we allows NFTs only below 200 usd price
 
-    constructor() {
+    address public immutable WETH; // This should be uniswap WETH address
+    address public immutable USDC; // This should be uniswap USDC address
+    mapping(address => address) twapOracles; // loanAsset => twapOracle
+
+    constructor(address _WETH, address _USDC) {
+        require(_WETH != address(0) && _USDC != address(0), "AssetManager: ZERO address");
         // Adding Native coins
         availableCollateralAsset[address(0)] = true;
         availableLoanAsset[address(0)] = true;
+        WETH = _WETH;
+        USDC = _USDC;
     }
 
     receive() external payable {}
@@ -75,6 +86,33 @@ contract AssetManager is Ownable, ReentrancyGuard, IAssetManager {
         _consumer = _consumer_;
 
         emit SetConsumer(msg.sender, _consumer_);
+    }
+
+    function setLoanAssetTwapOracle(address _asset, address _twap) external onlyOwner nonReentrant {
+        require(availableLoanAsset[_asset], "AssetManager: Invalid loan asset");
+        address token0 = ITwapOraclePriceFeed(_twap).token0();
+        address token1 = ITwapOraclePriceFeed(_twap).token1();
+        if (_asset == address(0)) {
+            require((token0 == WETH && token1 == USDC) || (token0 == USDC && token1 == WETH), "AssetManager: Invalid twap");
+        } else {
+            require((token0 == _asset && token1 == USDC) || (token0 == USDC && token1 == _asset), "AssetManager: Invalid twap");
+        }
+
+        twapOracles[_asset] = _twap;
+    }
+
+    function setAutomaticLoanLimit(uint256 _newLimit) external onlyOwner {
+        require(automaticLoanLimit != _newLimit, "AssetManager: New value is same as old");
+        uint256 oldLimit = automaticLoanLimit;
+        automaticLoanLimit = _newLimit;
+        emit SetAutomaticLoanLimit(msg.sender, oldLimit, _newLimit);
+    }
+
+    function isValidAutomaticLoan(address _asset, uint256 _amountIn) external view override returns (bool) {
+        require(availableLoanAsset[_asset], "AssetManager: Invalid loan asset");
+        require(twapOracles[_asset] != address(0), "AssetManager: Twap oracle was not set");
+        uint256 usdcAmount = ITwapOraclePriceFeed(twapOracles[_asset]).consult(_asset, _amountIn);
+        return usdcAmount <= automaticLoanLimit;
     }
 
     function requestETH(address _to, uint256 _amount) external override onlyConsumer {

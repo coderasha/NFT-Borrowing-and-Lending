@@ -180,7 +180,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         uint16[] calldata _loanRules, // tenor, LTV, interest, 10000 - 100% to use array - avoid stack too deep
         address[] calldata _currencies, // _loanCurrency, _collateralCurrency, address(0) is native coin
         address[] calldata nftAddressArray,
-        uint256[] calldata _amounts, // _fundAmount, _collateralAmount
+        uint256[] calldata _amounts, // _fundAmount, _collateralAmount _fundAmount is the amount of _collateral in _loanAsset
         uint256[] calldata nftTokenIdArray,
         TribeOneHelper.TokenType[] memory nftTokenTypeArray
     ) external {
@@ -244,6 +244,9 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
 
         uint256 expectedPrice = TribeOneHelper.getExpectedPrice(_fundAmount, _LTV, MAX_SLIPPAGE);
         require(_amount <= expectedPrice, "TribeOne: Invalid amount");
+        if (!isAdmin(msg.sender)) {
+            require(IAssetManager(assetManager).isValidAutomaticLoan(_loan.loanAsset.currency, expectedPrice));
+        }
 
         _loan.status = Status.APPROVED;
         address _token = _loan.loanAsset.currency;
