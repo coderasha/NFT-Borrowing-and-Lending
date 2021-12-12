@@ -28,7 +28,8 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         LIQUIDATION, // NFT was put in marketplace
         POSTLIQUIDATION, /// NFT was sold
         RESTWITHDRAWN, // user get back the rest of money from the money which NFT set is sold in marketplace
-        RESTLOCKED // Rest amount was forcely locked because he did not request to get back with in 2 weeks (GRACE PERIODS)
+        RESTLOCKED, // Rest amount was forcely locked because he did not request to get back with in 2 weeks (GRACE PERIODS)
+        REJECTED // Loan should be rejected when requested loan amount is less than fund amount because of some issues such as big fluctuation in marketplace
     }
 
     struct Asset {
@@ -92,6 +93,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
     event LoanPostLiquidation(uint256 indexed _loanId, uint256 _soldAmount, uint256 _finalDebt);
     event RestWithdrew(uint256 indexed _loanId, uint256 _amount);
     event SettingsUpdate(address _feeTo, uint256 _lateFee, uint256 _penaltyFee, address _salesManager, address _assetManager);
+    event LoanRejected(uint256 _loanId, address _agent);
 
     constructor(
         address _salesManager,
@@ -244,22 +246,29 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
 
         uint256 expectedPrice = TribeOneHelper.getExpectedPrice(_fundAmount, _LTV, MAX_SLIPPAGE);
         require(_amount <= expectedPrice, "TribeOne: Invalid amount");
-        if (!isAdmin(msg.sender)) {
-            require(IAssetManager(assetManager).isValidAutomaticLoan(_loan.loanAsset.currency, expectedPrice));
-        }
-
-        _loan.status = Status.APPROVED;
-        address _token = _loan.loanAsset.currency;
-
-        _loan.loanAsset.amount = _amount - _loan.fundAmount;
-
-        if (_token == address(0)) {
-            IAssetManager(assetManager).requestETH(_agent, _amount);
+        // Loan should be rejected when requested loan amount is less than fund amount because of some issues such as big fluctuation in marketplace
+        if (_amount < _fundAmount) {
+            _loan.status = Status.REJECTED;
+            returnColleteral(_loanId);
+            emit LoanRejected(_loanId, _agent);
         } else {
-            IAssetManager(assetManager).requestToken(_agent, _token, _amount);
-        }
+            if (!isAdmin(msg.sender)) {
+                require(IAssetManager(assetManager).isValidAutomaticLoan(_loan.loanAsset.currency, expectedPrice));
+            }
 
-        emit LoanApproved(_loanId, _agent, _token, _amount);
+            _loan.status = Status.APPROVED;
+            address _token = _loan.loanAsset.currency;
+
+            _loan.loanAsset.amount = _amount - _loan.fundAmount;
+
+            if (_token == address(0)) {
+                IAssetManager(assetManager).requestETH(_agent, _amount);
+            } else {
+                IAssetManager(assetManager).requestToken(_agent, _token, _amount);
+            }
+
+            emit LoanApproved(_loanId, _agent, _token, _amount);
+        }
     }
 
     /**
