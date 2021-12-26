@@ -26,6 +26,8 @@ abstract contract Ownable is Context {
 
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event SuperOwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event AddAdmin(address indexed _setter, address indexed _admin);
+    event RemoveAdmin(address indexed _setter, address indexed _admin);
 
     /**
      * @dev Initializes the contract setting the deployer as the initial owner.
@@ -91,5 +93,17 @@ abstract contract Ownable is Context {
         require(newSuperOwner != address(0), "Ownable: new super owner is the zero address");
         emit SuperOwnershipTransferred(_superOwner, newSuperOwner);
         _superOwner = newSuperOwner;
+    }
+
+    function addAdmin(address _admin) external onlySuperOwner {
+        require(!isAdmin(_admin), "Already admin");
+        admins[_admin] = true;
+        emit AddAdmin(msg.sender, _admin);
+    }
+
+    function removeAdmin(address _admin) external onlySuperOwner {
+        require(isAdmin(_admin), "This address is not admin");
+        admins[_admin] = false;
+        emit AddAdmin(msg.sender, _admin);
     }
 }

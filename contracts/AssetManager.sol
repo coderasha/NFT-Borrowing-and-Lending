@@ -2,6 +2,7 @@
 pragma solidity 0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./interfaces/IAssetManager.sol";
@@ -112,7 +113,7 @@ contract AssetManager is Ownable, ReentrancyGuard, IAssetManager {
         require(availableLoanAsset[_asset], "AssetManager: Invalid loan asset");
         require(twapOracles[_asset] != address(0), "AssetManager: Twap oracle was not set");
         uint256 usdcAmount = ITwapOraclePriceFeed(twapOracles[_asset]).consult(_asset, _amountIn);
-        return usdcAmount <= automaticLoanLimit;
+        return usdcAmount <= automaticLoanLimit * (10**IERC20Metadata(USDC).decimals());
     }
 
     function requestETH(address _to, uint256 _amount) external override onlyConsumer {
@@ -144,6 +145,6 @@ contract AssetManager is Ownable, ReentrancyGuard, IAssetManager {
             TribeOneHelper.safeTransfer(_token, msg.sender, _amount);
         }
 
-        WithdrawAsset(_to, _token, _amount);
+        emit WithdrawAsset(_to, _token, _amount);
     }
 }

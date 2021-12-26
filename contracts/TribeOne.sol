@@ -34,7 +34,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
 
     struct Asset {
         uint256 amount;
-        address currency; // address(0) is BNB native coin
+        address currency; // address(0) is ETH native coin
     }
 
     struct LoanRules {
@@ -65,15 +65,14 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
     Counters.Counter public loanIds; // loanId is from No.1
     // uint public loanLength;
     uint256 public constant MAX_SLIPPAGE = 500; // 5%
-    // uint256 public constant TENOR_UNIT = 4 weeks; // installment should be pay at least in every 4 weeks
-    // uint256 public constant GRACE_PERIOD = 14 days; // 2 weeks
+    uint256 public constant TENOR_UNIT = 4 weeks; // installment should be pay at least in every 4 weeks
+    uint256 public constant GRACE_PERIOD = 14 days; // 2 weeks
 
     /**
      * @dev It's for only testnet
-     * TODO It should reverted to above in mainnet
      */
-    uint256 public TENOR_UNIT = 7 minutes;
-    uint256 public GRACE_PERIOD = 3 minutes;
+    // uint256 public TENOR_UNIT = 7 minutes;
+    // uint256 public GRACE_PERIOD = 3 minutes;
 
     address public salesManager;
     address public assetManager;
@@ -112,16 +111,6 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         feeCurrency = _feeCurrency;
 
         transferOwnership(_multiSigWallet);
-    }
-
-    /**
-     * @dev It's just for only testnet.
-     * TODO It should be removed when mainnet deploy
-     */
-    function setPeriods(uint256 _tenorUnit, uint256 _gracePeriod) external {
-        require(msg.sender == address(0x6C641CE6A7216F12d28692f9d8b2BDcdE812eD2b));
-        TENOR_UNIT = _tenorUnit;
-        GRACE_PERIOD = _gracePeriod;
     }
 
     receive() external payable {}
@@ -166,7 +155,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         address _salesManager,
         address _assetManager
     ) external onlyOwner {
-        require(_salesManager != address(0) && _feeTo != address(0), "TribeOne: ZERO address");
+        require(_feeTo != address(0) && _salesManager != address(0) && _assetManager != address(0), "TribeOne: ZERO address");
         feeTo = _feeTo;
         lateFee = _lateFee;
         penaltyFee = _penaltyFee;
@@ -182,10 +171,10 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         uint16[] calldata _loanRules, // tenor, LTV, interest, 10000 - 100% to use array - avoid stack too deep
         address[] calldata _currencies, // _loanCurrency, _collateralCurrency, address(0) is native coin
         address[] calldata nftAddressArray,
-        uint256[] calldata _amounts, // _fundAmount, _collateralAmount _fundAmount is the amount of _collateral in _loanAsset
+        uint256[] calldata _amounts, // _fundAmount, _collateralAmount _fundAmount is the amount of _collateral in _loanAsset such as ETH
         uint256[] calldata nftTokenIdArray,
         TribeOneHelper.TokenType[] memory nftTokenTypeArray
-    ) external {
+    ) external payable {
         require(_loanRules.length == 3 && _amounts.length == 2, "TribeOne: Invalid parameter");
         uint16 tenor = _loanRules[0];
         uint16 LTV = _loanRules[1];
@@ -201,8 +190,6 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
             "TribeOne: Collateral asset is not available"
         );
 
-        require(_collateralCurrency != address(0), "TribeOne: Wrong collateral assets");
-
         require(
             nftAddressArray.length == nftTokenIdArray.length && nftTokenIdArray.length == nftTokenTypeArray.length,
             "TribeOne: NFT provided informations are missing or incomplete"
@@ -216,6 +203,12 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         uint256 _collateralAmount = _amounts[1];
 
         // Transfer collateral to TribeOne
+        if (_collateralCurrency == address(0)) {
+            require(msg.value >= _collateralAmount, "TribeOne: Insufficient collateral amount");
+            if (msg.value > _collateralAmount) {
+                TribeOneHelper.safeTransferETH(msg.sender, msg.value - _collateralAmount);
+            }
+        }
         TribeOneHelper.safeTransferFrom(_collateralCurrency, _msgSender(), address(this), _collateralAmount);
 
         loans[loanID].nftAddressArray = nftAddressArray;
@@ -334,7 +327,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         }
 
         uint256 paidAmount = _loan.paidAmount;
-        uint256 _totalDebt = totalDebt(_loanId);
+        uint256 _totalDebt = totalDebt(_loanId); // loan + interest
         {
             uint256 expectedAmount = (_totalDebt * expectedNr) / _loan.loanRules.tenor;
             require(paidAmount + _amount >= expectedAmount, "TribeOne: Insufficient Amount");
@@ -420,6 +413,9 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         }
     }
 
+    /**
+     * @dev shows loan + interest
+     */
     function totalDebt(uint256 _loanId) public view returns (uint256) {
         Loan storage _loan = loans[_loanId];
         return (_loan.loanAsset.amount * (10000 + _loan.loanRules.interest)) / 10000;
@@ -437,7 +433,10 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
 
     function expectedLastPaymentTime(uint256 _loanId) public view returns (uint256) {
         Loan storage _loan = loans[_loanId];
-        return _loan.loanStart + TENOR_UNIT * (_loan.passedTenors);
+        return
+            _loan.passedTenors >= _loan.loanRules.tenor
+                ? _loan.loanStart + TENOR_UNIT * (_loan.loanRules.tenor)
+                : _loan.loanStart + TENOR_UNIT * (_loan.passedTenors + 1);
     }
 
     function setLoanDefaulted(uint256 _loanId) external nonReentrant {

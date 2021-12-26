@@ -14,19 +14,9 @@ contract MultiSigWallet is ReentrancyGuard {
     mapping(address => bool) public isSigner;
     uint256 public numConfirmationsRequired;
 
-    // struct Transaction {
-    //     address to;
-    //     uint256 value;
-    //     bytes data;
-    //     bool executed;
-    //     uint256 numConfirmations;
-    // }
-
     // mapping from tx index => signer => bool
     mapping(uint256 => mapping(address => bool)) public isConfirmed;
-    Counters.Counter public txIds; // loanId is from No.1
-
-    // Transaction[] private transactions;
+    Counters.Counter public txIds;
 
     modifier onlySigner() {
         require(isSigner[msg.sender], "not signer");
@@ -65,6 +55,7 @@ contract MultiSigWallet is ReentrancyGuard {
         bytes32[] memory ss,
         uint8[] memory vs
     ) external payable onlySigner nonReentrant {
+        require(_to != address(0), "ZERO Address");
         require(rs.length == ss.length && ss.length == vs.length, "Signaure lengths should be same");
         uint256 sigLength = rs.length;
         require(sigLength >= numConfirmationsRequired, "Less than needed required confirmations");
@@ -81,8 +72,8 @@ contract MultiSigWallet is ReentrancyGuard {
         (bool success, ) = _to.call{value: _value}(_data);
         require(success, "tx failed");
 
-        txIds.increment();
         emit SubmitTransaction(msg.sender, txIdx, _to, _value, _data);
+        txIds.increment();
     }
 
     function _getSigner(
@@ -99,11 +90,11 @@ contract MultiSigWallet is ReentrancyGuard {
         return recoveredAddress;
     }
 
-    function getSigners() public view returns (address[] memory) {
+    function getSigners() external view returns (address[] memory) {
         return signers;
     }
 
-    function getTransactionCount() public view returns (uint256) {
+    function getTransactionCount() external view returns (uint256) {
         return txIds.current();
     }
 }
