@@ -102,7 +102,11 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         address _assetManager
     ) {
         require(
-            _salesManager != address(0) && _feeTo != address(0) && _feeCurrency != address(0) && _multiSigWallet != address(0),
+            _salesManager != address(0) &&
+                _feeTo != address(0) &&
+                _feeCurrency != address(0) &&
+                _multiSigWallet != address(0) &&
+                _assetManager != address(0),
             "TribeOne: ZERO address"
         );
         salesManager = _salesManager;
