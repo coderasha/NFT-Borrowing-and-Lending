@@ -1,5 +1,6 @@
 const { expect } = require('chai');
 const { ethers } = require('hardhat');
+const { WETH, USDC } = require('../scripts/shared/const');
 
 /**
  * We assume loan currency is native coin
@@ -25,7 +26,7 @@ describe('TribeOne super owner', function () {
     this.feeCurrency = await this.MockERC20.deploy('MockUSDT', 'MockUSDT'); // will be used for late fee
     this.collateralCurrency = await this.MockERC20.deploy('MockUSDC', 'MockUSDC'); // wiil be used for collateral
 
-    this.assetManager = await this.AssetManager.deploy();
+    this.assetManager = await this.AssetManager.deploy(WETH.rinkeby, USDC.rinkeby);
 
     this.multiSigWallet = await (
       await this.MultiSigWallet.deploy([this.signers[0].address, this.signers[1].address, this.signers[2].address], 2)

@@ -46,7 +46,23 @@ module.exports = {
   },
   networks: {
     hardhat: {
-      gasPrice: parseInt(utils.parseUnits("50", "gwei"))
+      hardfork: "london",
+      allowUnlimitedContractSize: true,
+      settings: {
+        optimizer: {
+          enabled: true,
+          runs: 9999,
+        },
+      },
+      evmVersion: "byzantium",
+      forking: {
+        url: "https://eth-rinkeby.alchemyapi.io/v2/8SAQa7xMc0VXTR_hyfPvAt2pe3QrXybB",
+        // url: "https://rinkeby.infura.io/v3/543a595517b74e008ed1cddf79c46cf8",
+        enabled: true,
+        blockNumber: 9714076
+      },
+      gasPrice: "auto",
+      accounts
     },
     mainnet: {
       url: `https://mainnet.infura.io/v3/${process.env.INFURA_KEY}`,
@@ -95,6 +111,9 @@ module.exports = {
   //   disambiguatePaths: true,
   //   runOnCompile: true
   // },
+  mocha: {
+    timeout: 300000
+  },
   solidity: {
     version: "0.8.0",
     settings: {

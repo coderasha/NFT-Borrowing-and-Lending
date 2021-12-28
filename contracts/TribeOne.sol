@@ -51,7 +51,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         uint256 restAmount; // rest amount after sending loan debt(+interest) and 5% penalty
         address borrower; // the address who receives the loan
         uint8 nrOfPenalty;
-        uint8 passedTenors; // the number of tenors which we can consider user passed
+        uint8 passedTenors; // the number of tenors which we can consider user passed - paid tenor or got penalty
         Asset loanAsset;
         Asset collateralAsset;
         Status status; // the loan status
@@ -250,7 +250,10 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
             emit LoanRejected(_loanId, _agent);
         } else {
             if (!isAdmin(msg.sender)) {
-                require(IAssetManager(assetManager).isValidAutomaticLoan(_loan.loanAsset.currency, expectedPrice));
+                require(
+                    IAssetManager(assetManager).isValidAutomaticLoan(_loan.loanAsset.currency, expectedPrice),
+                    "TribeOne: Exceeded loan limit"
+                );
             }
 
             _loan.status = Status.APPROVED;
@@ -412,7 +415,6 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         uint256 expectedNr = expectedNrOfPayments(_loanId);
         uint256 passedTenors = _loan.passedTenors;
         if (expectedNr > passedTenors) {
-            _loan.passedTenors = uint8(expectedNr);
             _loan.nrOfPenalty += uint8(expectedNr - passedTenors);
         }
     }

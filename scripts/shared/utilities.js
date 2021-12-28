@@ -1,6 +1,6 @@
 const { ethers } = require('hardhat');
 const { BigNumber } = ethers;
-const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+const ZERO_ADDRESS = ethers.constants.AddressZero;
 const TENOR_UNIT = 4 * 7 * 24 * 3600; // 4 weeks
 const GRACE_PERIOD = 2 * 7 * 24 * 3600; // 2 weeks
 const NFT_TYPE = {
@@ -29,11 +29,28 @@ function getBigNumber(amount, decimals = 18) {
   return BigNumber.from(amount).mul(BigNumber.from(10).pow(decimals));
 }
 
+async function getSignatures(signers, hexCallData) {
+  const rs = [];
+  const ss = [];
+  const vs = [];
+
+  for (const signer of signers) {
+    const flatSig = await signer.signMessage(ethers.utils.arrayify(ethers.utils.keccak256(hexCallData)));
+    const splitSig = ethers.utils.splitSignature(flatSig);
+    rs.push(splitSig.r);
+    ss.push(splitSig.s);
+    vs.push(splitSig.v);
+  }
+
+  return { rs, ss, vs };
+}
+
 module.exports = {
   ZERO_ADDRESS,
   NFT_TYPE,
   STATUS,
   TENOR_UNIT,
   GRACE_PERIOD,
-  getBigNumber
+  getBigNumber,
+  getSignatures
 };

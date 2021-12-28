@@ -1,6 +1,7 @@
 const { BigNumber } = require('@ethersproject/bignumber');
 const { expect } = require('chai');
 const { ethers, network } = require('hardhat');
+const { WETH, USDC } = require('../scripts/shared/const');
 
 /**
  * We assume loan currency is native coin
@@ -31,7 +32,7 @@ describe('MultiSigWallet', function () {
     this.feeCurrency = await this.MockERC20.deploy('MockUSDT', 'MockUSDT'); // will be used for late fee
     this.collateralCurrency = await this.MockERC20.deploy('MockUSDC', 'MockUSDC'); // wiil be used for collateral
 
-    this.assetManager = await this.AssetManager.deploy();
+    this.assetManager = await this.AssetManager.deploy(WETH.rinkeby, USDC.rinkeby);
 
     this.multiSigWallet = await (
       await this.MultiSigWallet.deploy(this.owners, this.numConfirmationsRequired)
@@ -49,12 +50,7 @@ describe('MultiSigWallet', function () {
 
     this.multiWalletTest = await (await this.MultiWalletTest.deploy()).deployed();
 
-    // await this.tribeOne.transferOwnership(this.multiSigWallet.address);
-
-    // Transfering 10 ETH to TribeOne
-    // await ethers.provider.send('eth_sendTransaction', [
-    //   { from: this.signers[0].address, to: this.tribeOne.address, value: getBigNumber(10).toHexString() }
-    // ]);
+    await this.tribeOne.transferOwnership(this.multiSigWallet.address);
   });
 
   it('Trying setSettings function in TribeOne', async function () {
