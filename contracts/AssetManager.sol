@@ -111,13 +111,19 @@ contract AssetManager is Ownable, ReentrancyGuard, IAssetManager {
 
     function isValidAutomaticLoan(address _asset, uint256 _amountIn) external view override returns (bool) {
         require(availableLoanAsset[_asset], "AssetManager: Invalid loan asset");
-        address _twap = twapOracles[_asset];
-        require(_twap != address(0), "AssetManager: Twap oracle was not set");
+        uint256 usdcAmount;
+        if (_asset == USDC) {
+            usdcAmount = _amountIn;
+        } else {
+             address _twap = twapOracles[_asset];
+            require(_twap != address(0), "AssetManager: Twap oracle was not set");
 
-        if (_asset == address(0)) {
-            _asset = WETH;
+            if (_asset == address(0)) {
+                _asset = WETH;
+            }
+            usdcAmount = ITwapOraclePriceFeed(_twap).consult(_asset, _amountIn);
         }
-        uint256 usdcAmount = ITwapOraclePriceFeed(_twap).consult(_asset, _amountIn);
+
         return usdcAmount <= automaticLoanLimit * (10**IERC20Metadata(USDC).decimals());
     }
 
