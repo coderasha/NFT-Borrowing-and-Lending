@@ -115,7 +115,7 @@ contract AssetManager is Ownable, ReentrancyGuard, IAssetManager {
         if (_asset == USDC) {
             usdcAmount = _amountIn;
         } else {
-             address _twap = twapOracles[_asset];
+            address _twap = twapOracles[_asset];
             require(_twap != address(0), "AssetManager: Twap oracle was not set");
 
             if (_asset == address(0)) {

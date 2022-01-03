@@ -51,7 +51,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         uint256 restAmount; // rest amount after sending loan debt(+interest) and 5% penalty
         address borrower; // the address who receives the loan
         uint8 nrOfPenalty;
-        uint8 passedTenors; // the number of tenors which we can consider user passed - paid tenor or got penalty
+        uint8 passedTenors; // the number of tenors which we can consider user passed - paid tenor
         Asset loanAsset;
         Asset collateralAsset;
         Status status; // the loan status
@@ -555,7 +555,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
             if (
                 _loan.loanAsset.currency == _currency &&
                 _loan.status == Status.POSTLIQUIDATION &&
-                _loan.postTime + GRACE_PERIOD > block.timestamp
+                _loan.postTime + GRACE_PERIOD <= block.timestamp
             ) {
                 _amount += _loan.restAmount;
                 _loan.status = Status.RESTLOCKED;

@@ -63,3 +63,7 @@ Note: We set late fee and final penaly as 0 at the first stage.
   getTransaction() function needs modifier for more stable calling   -- done
 
 - EIP1967 pattern implementation
+
+
+"AssetManager": deployed at 0x5B2dbe99D1f792aD8950e42b2C7E54120Da1434f
+"TribeOne": deployed at 0x8a47D5CFE361D545d72E250c6975321DaFD56c4f 

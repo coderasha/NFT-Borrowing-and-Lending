@@ -10,13 +10,13 @@ contract MultiSigWallet is ReentrancyGuard {
     event Deposit(address indexed sender, uint256 amount, uint256 balance);
     event SubmitTransaction(address indexed signer, uint256 indexed txIndex, address indexed to, uint256 value, bytes data);
 
-    address[] public signers;
+    address[] private signers;
     mapping(address => bool) public isSigner;
     uint256 public numConfirmationsRequired;
 
     // mapping from tx index => signer => bool
     mapping(uint256 => mapping(address => bool)) public isConfirmed;
-    Counters.Counter public txIds;
+    Counters.Counter private txIds;
 
     modifier onlySigner() {
         require(isSigner[msg.sender], "not signer");
