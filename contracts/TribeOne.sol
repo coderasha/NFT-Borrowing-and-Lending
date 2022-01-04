@@ -179,7 +179,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         uint256[] calldata nftTokenIdArray,
         TribeOneHelper.TokenType[] memory nftTokenTypeArray
     ) external payable {
-        require(_loanRules.length == 3 && _amounts.length == 2, "TribeOne: Invalid parameter");
+        require(_loanRules.length == 3 && _amounts.length == 2 && _currencies.length == 2, "TribeOne: Invalid parameter");
         uint16 tenor = _loanRules[0];
         uint16 LTV = _loanRules[1];
         uint16 interest = _loanRules[2];
@@ -251,7 +251,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         } else {
             if (!isAdmin(msg.sender)) {
                 require(
-                    IAssetManager(assetManager).isValidAutomaticLoan(_loan.loanAsset.currency, expectedPrice),
+                    IAssetManager(assetManager).isValidAutomaticLoan(_loan.loanAsset.currency, _amount),
                     "TribeOne: Exceeded loan limit"
                 );
             }
@@ -375,7 +375,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         // We should check conditions first to avoid transaction failed
         if (paidAmount + _amount == _totalDebt) {
             _loan.status = Status.LOANPAID;
-            if (_loan.borrower == _msgSender() && _loan.nrOfPenalty == 0) {
+            if (_loan.borrower == _msgSender() && (_loan.nrOfPenalty == 0 || lateFee == 0)) {
                 _withdrawNFT(_loanId);
             }
         }
@@ -523,7 +523,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         require(_restAmount > 0, "TribeOne: No amount to give back");
 
         if (lateFee > 0) {
-            uint256 _amount = lateFee * (10**IERC20Metadata(feeCurrency).decimals()); // tenor late fee
+            uint256 _amount = lateFee * (10**IERC20Metadata(feeCurrency).decimals()) * _loan.nrOfPenalty; // tenor late fee
             TribeOneHelper.safeTransferFrom(feeCurrency, _msgSender(), address(this), _amount);
         }
 

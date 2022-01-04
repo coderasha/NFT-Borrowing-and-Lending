@@ -104,6 +104,6 @@ abstract contract Ownable is Context {
     function removeAdmin(address _admin) external onlySuperOwner {
         require(isAdmin(_admin), "This address is not admin");
         admins[_admin] = false;
-        emit AddAdmin(msg.sender, _admin);
+        emit RemoveAdmin(msg.sender, _admin);
     }
 }
