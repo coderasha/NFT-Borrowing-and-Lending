@@ -244,7 +244,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         uint256 expectedPrice = TribeOneHelper.getExpectedPrice(_fundAmount, _LTV, MAX_SLIPPAGE);
         require(_amount <= expectedPrice, "TribeOne: Invalid amount");
         // Loan should be rejected when requested loan amount is less than fund amount because of some issues such as big fluctuation in marketplace
-        if (_amount < _fundAmount) {
+        if (_amount <= _fundAmount) {
             _loan.status = Status.REJECTED;
             returnColleteral(_loanId);
             emit LoanRejected(_loanId, _agent);
@@ -450,7 +450,6 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         require(_loan.status == Status.LOANACTIVED, "TribeOne: Invalid status");
         require(expectedLastPaymentTime(_loanId) < block.timestamp, "TribeOne: Not overdued date yet");
 
-        _updatePenalty(_loanId);
         _loan.status = Status.DEFAULTED;
 
         emit LoanDefaulted(_loanId);
@@ -460,6 +459,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         Loan storage _loan = loans[_loanId];
         require(_loan.status == Status.DEFAULTED, "TribeOne: Invalid status");
         require(expectedLastPaymentTime(_loanId) + GRACE_PERIOD < block.timestamp, "TribeOne: Not overdued date yet");
+        // _updatePenalty(_loanId);
         _loan.status = Status.LIQUIDATION;
         uint256 len = _loan.nftAddressArray.length;
 
@@ -482,17 +482,17 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         Loan storage _loan = loans[_loanId];
         require(_loan.status == Status.LIQUIDATION, "TribeOne: invalid status");
 
-        // We collect fees to our feeTo address
+        // We collect debts to our feeTo address
         address _currency = _loan.loanAsset.currency;
         _amount = _currency == address(0) ? msg.value : _amount;
         uint256 _finalDebt = finalDebtAndPenalty(_loanId);
         if (_currency == address(0)) {
             _finalDebt = _amount > _finalDebt ? _finalDebt : _amount;
-            TribeOneHelper.safeTransferETH(feeTo, _finalDebt);
+            TribeOneHelper.safeTransferETH(assetManager, _finalDebt);
         } else {
             TribeOneHelper.safeTransferFrom(_currency, _msgSender(), address(this), _amount);
             _finalDebt = _amount > _finalDebt ? _finalDebt : _amount;
-            TribeOneHelper.safeTransfer(_currency, feeTo, _finalDebt);
+            TribeOneHelper.safeTransfer(_currency, assetManager, _finalDebt);
         }
 
         _loan.status = Status.POSTLIQUIDATION;

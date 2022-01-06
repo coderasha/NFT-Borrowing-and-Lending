@@ -19,6 +19,7 @@ contract AssetManager is Ownable, ReentrancyGuard, IAssetManager {
     event SetAutomaticLoanLimit(address _setter, uint256 _oldLimit, uint256 _newLimit);
     event TransferAsset(address indexed _requester, address _to, address _token, uint256 _amount);
     event WithdrawAsset(address indexed _to, address _token, uint256 _amount);
+    event SetTwapOracle(address indexed _asset, address _twap, address _user);
 
     mapping(address => bool) private availableLoanAsset;
     mapping(address => bool) private availableCollateralAsset;
@@ -100,6 +101,7 @@ contract AssetManager is Ownable, ReentrancyGuard, IAssetManager {
         }
 
         twapOracles[_asset] = _twap;
+        emit SetTwapOracle(_asset, _twap, msg.sender);
     }
 
     function setAutomaticLoanLimit(uint256 _newLimit) external onlyOwner {
