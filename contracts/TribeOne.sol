@@ -212,8 +212,9 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
             if (msg.value > _collateralAmount) {
                 TribeOneHelper.safeTransferETH(msg.sender, msg.value - _collateralAmount);
             }
+        } else {
+            TribeOneHelper.safeTransferFrom(_collateralCurrency, _msgSender(), address(this), _collateralAmount);
         }
-        TribeOneHelper.safeTransferFrom(_collateralCurrency, _msgSender(), address(this), _collateralAmount);
 
         loans[loanID].nftAddressArray = nftAddressArray;
         loans[loanID].borrower = _msgSender();
@@ -279,7 +280,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         uint256 _loanId,
         address _agent,
         bool _accepted
-    ) external payable override onlyOwner nonReentrant {
+    ) external payable override nonReentrant {
         Loan storage _loan = loans[_loanId];
         require(_loan.status == Status.APPROVED, "TribeOne: Not approved loan");
         require(_agent != address(0), "TribeOne: ZERO address");
@@ -300,7 +301,17 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
             // user can not get back collateral in this case, we transfer collateral to AssetManager
             address _currency = _loan.collateralAsset.currency;
             uint256 _amount = _loan.collateralAsset.amount;
-            TribeOneHelper.safeTransferAsset(_currency, assetManager, _amount);
+            // TribeOneHelper.safeTransferAsset(_currency, assetManager, _amount);
+            if (_currency == address(0)) {
+                IAssetManager(assetManager).collectInstallment{value: _amount}(
+                    _currency,
+                    _amount,
+                    _loan.loanRules.interest,
+                    true
+                );
+            } else {
+                IAssetManager(assetManager).collectInstallment(_currency, _amount, _loan.loanRules.interest, true);
+            }
         } else {
             _loan.status = Status.FAILED;
             // refund loan
@@ -354,9 +365,16 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
             if (dust > 0) {
                 TribeOneHelper.safeTransferETH(_msgSender(), dust);
             }
-            TribeOneHelper.safeTransferETH(assetManager, _amount);
+            // TribeOneHelper.safeTransferETH(assetManager, _amount);
+            IAssetManager(assetManager).collectInstallment{value: _amount}(
+                _loanCurrency,
+                _amount,
+                _loan.loanRules.interest,
+                false
+            );
         } else {
             TribeOneHelper.safeTransferFrom(_loanCurrency, _msgSender(), assetManager, _amount);
+            IAssetManager(assetManager).collectInstallment(_loanCurrency, _amount, _loan.loanRules.interest, false);
         }
 
         _loan.paidAmount += _amount;
@@ -459,7 +477,6 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         Loan storage _loan = loans[_loanId];
         require(_loan.status == Status.DEFAULTED, "TribeOne: Invalid status");
         require(expectedLastPaymentTime(_loanId) + GRACE_PERIOD < block.timestamp, "TribeOne: Not overdued date yet");
-        // _updatePenalty(_loanId);
         _loan.status = Status.LIQUIDATION;
         uint256 len = _loan.nftAddressArray.length;
 
@@ -482,17 +499,23 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         Loan storage _loan = loans[_loanId];
         require(_loan.status == Status.LIQUIDATION, "TribeOne: invalid status");
 
-        // We collect debts to our feeTo address
+        // We collect debts to our asset manager address
         address _currency = _loan.loanAsset.currency;
         _amount = _currency == address(0) ? msg.value : _amount;
         uint256 _finalDebt = finalDebtAndPenalty(_loanId);
+        _finalDebt = _amount > _finalDebt ? _finalDebt : _amount;
         if (_currency == address(0)) {
-            _finalDebt = _amount > _finalDebt ? _finalDebt : _amount;
-            TribeOneHelper.safeTransferETH(assetManager, _finalDebt);
+            // TribeOneHelper.safeTransferETH(assetManager, _finalDebt);
+            IAssetManager(assetManager).collectInstallment{value: _finalDebt}(
+                _currency,
+                _finalDebt,
+                _loan.loanRules.interest,
+                false
+            );
         } else {
             TribeOneHelper.safeTransferFrom(_currency, _msgSender(), address(this), _amount);
-            _finalDebt = _amount > _finalDebt ? _finalDebt : _amount;
-            TribeOneHelper.safeTransfer(_currency, assetManager, _finalDebt);
+            // TribeOneHelper.safeTransfer(_currency, assetManager, _finalDebt);
+            IAssetManager(assetManager).collectInstallment(_currency, _finalDebt, _loan.loanRules.interest, false);
         }
 
         _loan.status = Status.POSTLIQUIDATION;
@@ -545,7 +568,6 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
      * we will transfer rest money to our fee address (after 14 days notification).
      * For saving gas fee, we will transfer once for the one kind of token.
      */
-
     function lockRestAmount(uint256[] calldata _loanIds, address _currency) external nonReentrant {
         uint256 len = _loanIds.length;
         uint256 _amount = 0;
@@ -582,5 +604,13 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         uint256 _amount = _loan.collateralAsset.amount;
         address _to = _loan.borrower;
         TribeOneHelper.safeTransferAsset(_currency, _to, _amount);
+    }
+
+    function setAllowanceForAssetManager(address _token) external onlySuperOwner {
+        TribeOneHelper.safeApprove(_token, assetManager, type(uint256).max);
+    }
+
+    function revokeAllowanceForAssetManager(address _token) external onlySuperOwner {
+        TribeOneHelper.safeApprove(_token, assetManager, 0);
     }
 }

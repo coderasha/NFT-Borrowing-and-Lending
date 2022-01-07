@@ -160,4 +160,20 @@ contract AssetManager is Ownable, ReentrancyGuard, IAssetManager {
 
         emit WithdrawAsset(_to, _token, _amount);
     }
+
+    // TODO should it be only TribeOne?
+    function collectInstallment(
+        address _currency,
+        uint256 _amount,
+        uint256 _interest,
+        bool _collateral
+    ) external payable override {
+        if (_currency == address(0)) {
+            require(msg.value == _amount, "Wrong msg.value");
+        } else {
+            TribeOneHelper.safeTransferFrom(_currency, msg.sender, address(this), _amount);
+        }
+        // We will supplement more detail in V2
+        // 80% interest will go to Funding pool rewarder contract, 20% wil be burn
+    }
 }

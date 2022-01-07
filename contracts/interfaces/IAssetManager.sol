@@ -15,4 +15,11 @@ interface IAssetManager {
         address _token,
         uint256 _amount
     ) external;
+
+    function collectInstallment(
+        address _currency,
+        uint256 _amount,
+        uint256 _interest,
+        bool _collateral
+    ) external payable;
 }
