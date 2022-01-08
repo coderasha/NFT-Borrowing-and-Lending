@@ -280,7 +280,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         uint256 _loanId,
         address _agent,
         bool _accepted
-    ) external payable override nonReentrant {
+    ) external payable override onlyOwner nonReentrant {
         Loan storage _loan = loans[_loanId];
         require(_loan.status == Status.APPROVED, "TribeOne: Not approved loan");
         require(_agent != address(0), "TribeOne: ZERO address");
@@ -317,15 +317,17 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
             // refund loan
             // in the case when loan currency is ETH, loan amount should be fund back from agent to TribeOne AssetNanager
             address _token = _loan.loanAsset.currency;
-            uint256 _amount = _loan.loanAsset.amount;
+            uint256 _amount = _loan.loanAsset.amount + _loan.fundAmount;
             if (_token == address(0)) {
                 require(msg.value >= _amount, "TribeOne: Less than loan amount");
                 if (msg.value > _amount) {
                     TribeOneHelper.safeTransferETH(_agent, msg.value - _amount);
                 }
-                TribeOneHelper.safeTransferETH(assetManager, _amount);
+                // TribeOneHelper.safeTransferETH(assetManager, _amount);
+                IAssetManager(assetManager).collectInstallment{value: _amount}(_token, _amount, _loan.loanRules.interest, true);
             } else {
-                TribeOneHelper.safeTransferFrom(_token, _agent, assetManager, _amount);
+                // TribeOneHelper.safeTransferFrom(_token, _agent, assetManager, _amount);
+                IAssetManager(assetManager).collectInstallment(_token, _amount, _loan.loanRules.interest, true);
             }
 
             returnColleteral(_loanId);
@@ -373,7 +375,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
                 false
             );
         } else {
-            TribeOneHelper.safeTransferFrom(_loanCurrency, _msgSender(), assetManager, _amount);
+            TribeOneHelper.safeTransferFrom(_loanCurrency, _msgSender(), address(this), _amount);
             IAssetManager(assetManager).collectInstallment(_loanCurrency, _amount, _loan.loanRules.interest, false);
         }
 

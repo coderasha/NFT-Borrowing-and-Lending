@@ -1,4 +1,5 @@
 const { expect } = require('chai');
+const { BigNumber } = require('ethers');
 const { ethers, network } = require('hardhat');
 const { WETH, USDC, TWAP_ORACLE_PRICE_FEED_WETH_USDC } = require('../scripts/shared/const');
 const {
@@ -184,22 +185,26 @@ describe('TribeOne', function () {
 
       it('Should return callateral and fund amount to borrower', async function () {
         const loanAmount = this.createdLoan.loanAsset.amount;
+        const fundAmount = this.createdLoan.fundAmount;
+        const refundValue = BigNumber.from(loanAmount).add(BigNumber.from(fundAmount));
+
         const encodedCallData = this.tribeOne.interface.encodeFunctionData('relayNFT', [
           this.loanId,
           this.agent.address,
           false
         ]);
-        const paddedValue = ethers.utils.hexZeroPad(ethers.utils.hexlify(loanAmount), 32);
+        const paddedValue = ethers.utils.hexZeroPad(ethers.utils.hexlify(refundValue), 32);
         const hexCallData = this.tribeOne.address + paddedValue.slice(2) + encodedCallData.slice(2);
         const { rs, ss, vs } = await getSignatures([this.signers[0], this.signers[1]], hexCallData);
 
         await expect(
-          this.multiSigWallet.submitTransaction(this.tribeOne.address, loanAmount, encodedCallData, rs, ss, vs, {
-            value: loanAmount
+          this.multiSigWallet.submitTransaction(this.tribeOne.address, refundValue, encodedCallData, rs, ss, vs, {
+            value: refundValue
           })
         )
           .to.emit(this.tribeOne, 'NFTRelayed')
           .withArgs(this.loanId, this.agent.address, false);
+        // await this.tribeOne.relayNFT(this.loanId, this.agent.address, false, { value: refundValue });
       });
 
       it('Should relay NFT to TribeOne', async function () {
@@ -477,18 +482,21 @@ describe('TribeOne', function () {
 
       it('Should return callateral and fund amount to borrower', async function () {
         const loanAmount = this.createdLoan.loanAsset.amount;
+        const fundAmount = this.createdLoan.fundAmount;
+        const refundValue = BigNumber.from(loanAmount).add(BigNumber.from(fundAmount));
+
         const encodedCallData = this.tribeOne.interface.encodeFunctionData('relayNFT', [
           this.loanId,
           this.agent.address,
           false
         ]);
-        const paddedValue = ethers.utils.hexZeroPad(ethers.utils.hexlify(loanAmount), 32);
+        const paddedValue = ethers.utils.hexZeroPad(ethers.utils.hexlify(refundValue), 32);
         const hexCallData = this.tribeOne.address + paddedValue.slice(2) + encodedCallData.slice(2);
         const { rs, ss, vs } = await getSignatures([this.signers[0], this.signers[1]], hexCallData);
 
         await expect(
-          this.multiSigWallet.submitTransaction(this.tribeOne.address, loanAmount, encodedCallData, rs, ss, vs, {
-            value: loanAmount
+          this.multiSigWallet.submitTransaction(this.tribeOne.address, refundValue, encodedCallData, rs, ss, vs, {
+            value: refundValue
           })
         )
           .to.emit(this.tribeOne, 'NFTRelayed')
