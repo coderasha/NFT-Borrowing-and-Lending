@@ -67,3 +67,7 @@ Note: We set late fee and final penaly as 0 at the first stage.
 
 "AssetManager": deployed at 0x5B2dbe99D1f792aD8950e42b2C7E54120Da1434f
 "TribeOne": deployed at 0x8a47D5CFE361D545d72E250c6975321DaFD56c4f 
+
+"MultiSigWallet": 0x8Ff48A7EAE9243486212F4a024C7e2fff563b131
+"AssetManager": 0x4Ea17a52482C1d45cC62617D32DA2A4349e18a4b
+"TribeOne": 0x9165C2D57F825CFbF8306EB97eEe6E2eAd56adc7
