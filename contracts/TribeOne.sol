@@ -160,6 +160,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         address _assetManager
     ) external onlySuperOwner {
         require(_feeTo != address(0) && _salesManager != address(0) && _assetManager != address(0), "TribeOne: ZERO address");
+        require(_lateFee <= 5 && penaltyFee <= 50, "TribeOne: Exceeded fee limit");
         feeTo = _feeTo;
         lateFee = _lateFee;
         penaltyFee = _penaltyFee;
@@ -550,7 +551,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
 
         if (lateFee > 0) {
             uint256 _amount = lateFee * (10**IERC20Metadata(feeCurrency).decimals()) * _loan.nrOfPenalty; // tenor late fee
-            TribeOneHelper.safeTransferFrom(feeCurrency, _msgSender(), address(this), _amount);
+            TribeOneHelper.safeTransferFrom(feeCurrency, _msgSender(), address(feeTo), _amount);
         }
 
         _loan.status = Status.RESTWITHDRAWN;
