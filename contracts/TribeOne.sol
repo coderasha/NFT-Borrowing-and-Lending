@@ -213,6 +213,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
                 TribeOneHelper.safeTransferETH(msg.sender, msg.value - _collateralAmount);
             }
         } else {
+            require(msg.value == 0, "TribeOne: ERC20 collateral");
             TribeOneHelper.safeTransferFrom(_collateralCurrency, _msgSender(), address(this), _collateralAmount);
         }
 
