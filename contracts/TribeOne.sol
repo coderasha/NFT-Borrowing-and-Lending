@@ -158,7 +158,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         uint256 _penaltyFee,
         address _salesManager,
         address _assetManager
-    ) external onlyOwner {
+    ) external onlySuperOwner {
         require(_feeTo != address(0) && _salesManager != address(0) && _assetManager != address(0), "TribeOne: ZERO address");
         feeTo = _feeTo;
         lateFee = _lateFee;
