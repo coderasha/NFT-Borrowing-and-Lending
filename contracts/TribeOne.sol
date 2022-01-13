@@ -325,10 +325,9 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
                 if (msg.value > _amount) {
                     TribeOneHelper.safeTransferETH(_agent, msg.value - _amount);
                 }
-                // TribeOneHelper.safeTransferETH(assetManager, _amount);
                 IAssetManager(assetManager).collectInstallment{value: _amount}(_token, _amount, _loan.loanRules.interest, true);
             } else {
-                // TribeOneHelper.safeTransferFrom(_token, _agent, assetManager, _amount);
+                TribeOneHelper.safeTransferFrom(_token, _agent, address(this), _amount);
                 IAssetManager(assetManager).collectInstallment(_token, _amount, _loan.loanRules.interest, true);
             }
 
@@ -357,7 +356,7 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
             _updatePenalty(_loanId);
         }
 
-        // Transfer asset from msg.sender to contract
+        // Transfer asset from msg.sender to AssetManager contract
         uint256 dust;
         if (paidAmount + _amount > _totalDebt) {
             dust = paidAmount + _amount - _totalDebt;
@@ -518,7 +517,6 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
             );
         } else {
             TribeOneHelper.safeTransferFrom(_currency, _msgSender(), address(this), _amount);
-            // TribeOneHelper.safeTransfer(_currency, assetManager, _finalDebt);
             IAssetManager(assetManager).collectInstallment(_currency, _finalDebt, _loan.loanRules.interest, false);
         }
 
@@ -534,14 +532,14 @@ contract TribeOne is ERC721Holder, ERC1155Holder, ITribeOne, Ownable, Reentrancy
         Loan storage _loan = loans[_loanId];
         uint256 paidAmount = _loan.paidAmount;
         uint256 _totalDebt = totalDebt(_loanId);
-        uint256 _penalty = (_loan.loanAsset.amount * penaltyFee) / 1000; // 5% penalty of loan amount
+        uint256 _penalty = ((_totalDebt - paidAmount) * penaltyFee) / 1000; // 5% penalty of loan amount
         return _totalDebt + _penalty - paidAmount;
     }
 
     /**
      * @dev User can get back the rest money through this function, but he should pay late fee.
      */
-    function getBackFund(uint256 _loanId) external payable {
+    function getBackFund(uint256 _loanId) external {
         Loan storage _loan = loans[_loanId];
         require(_msgSender() == _loan.borrower, "TribOne: Forbidden");
         require(_loan.status == Status.POSTLIQUIDATION, "TribeOne: Invalid status");

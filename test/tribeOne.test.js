@@ -85,19 +85,7 @@ describe('TribeOne', function () {
     await this.tribeOne.setAllowanceForAssetManager(this.collateralCurrency.address);
 
     // set late fee
-    const encodedCallData = this.tribeOne.interface.encodeFunctionData('setSettings', [
-      this.feeTo.address,
-      10,
-      0,
-      this.salesManager.address,
-      this.assetManager.address
-    ]);
-
-    const value = 0;
-    const paddedValue = ethers.utils.hexZeroPad(ethers.utils.hexlify(value), 32);
-    const hexCallData = this.tribeOne.address + paddedValue.slice(2) + encodedCallData.slice(2);
-    const { rs, ss, vs } = await getSignatures([this.signers[0], this.signers[1]], hexCallData);
-    await expect(this.multiSigWallet.submitTransaction(this.tribeOne.address, 0, encodedCallData, rs, ss, vs));
+    await this.tribeOne.setSettings(this.feeTo.address, 5, 0, this.salesManager.address, this.assetManager.address);
   });
 
   describe('Different Collateral & Loan currencies', function () {
